@@ -4,9 +4,9 @@ PyEELS - Python EELS simulation package
 PyEELS is a package for simulation Electron Energy Loss Spectra from model band structures. It can both be used as tool within education or comparison to experimental results.
 
 The use of the package can be seen as threefold:
-- Creating real space crystal models
-- Create/generate band structures in reciprocal space
-- Simulate EELS on the model band structures
+1. Creating real space crystal models
+2. Create/generate band structures in reciprocal space
+3. Simulate EELS on the model band structures
 
 Creating real space crystal models
 ==================================
