@@ -25,7 +25,6 @@ class Band:
             _logger.warning("First dimension of waves ({}) does not match the shape of energies ({})".format(waves.shape,energies.shape))
         else:
             self.waves = waves
-            
         
     def __repr__(self):
         """ Representing band object """

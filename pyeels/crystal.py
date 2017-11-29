@@ -12,9 +12,9 @@ class Crystal:
         """
 
         self.atoms = []
-        self.setLattice(lattice)
+        self.set_lattice(lattice)
         
-    def setLattice(self, lattice):
+    def set_lattice(self, lattice):
         """ Sett lattice parameters and calculate relevant properties 
         
         :type  lattice: ndarray
@@ -25,23 +25,23 @@ class Crystal:
         self.b = lattice[1]
         self.c = lattice[2]
         
-        self._setVolume()
-        self._setSpaceGroup()
-        self._setBrillouinZone()
+        self._set_volume()
+        self._set_spacegroup()
+        self._set_brillouinzone()
         
-    def _setVolume(self):
+    def _set_volume(self):
         """ Calculate the volume of the crystal"""
         self.volume = np.dot(self.a, np.cross(self.b, self.c))
         
-    def _setSpaceGroup(self):
+    def _set_spacegroup(self):
         self.spacegroup = spg.get_spacegroup(
             (self.lattice,
-             self.getAtomPositons(),
-             self.getAtomNumbers()), 
+             self.get_atom_positons(),
+             self.get_atom_numbers()), 
              symprec=1e-5)
         
-    def _setBrillouinZone(self):
-        self.brillouinZone = BrillouinZone(self)
+    def _set_brillouinzone(self):
+        self.brillouinzone = BrillouinZone(self)
         
     def add_atom(self,atom):
         """ Add an atom object to the crystal
@@ -53,15 +53,15 @@ class Crystal:
             if np.all(atom.position == existing_atom.position):
                 existing = True
         if not existing:
-            atom.position = self._reduceCoordinate(atom.position)
+            atom.position = self._reduce_coordinate(atom.position)
             self.atoms.append(atom)
-            self._setSpaceGroup()
-            self._setBrillouinZone()
+            self._set_spacegroup()
+            self._set_brillouinzone()
             return "Placed atom at {}".format(atom.position)
         else:
             _logger.warning("An atom is already at {}, try another coordinate.".format(atom.position))
     
-    def getAtomNumbers(self):
+    def get_atom_numbers(self):
         numbers = []
         for atom in self.atoms:
             numbers.append(atom.number)
@@ -71,7 +71,7 @@ class Crystal:
         #else:
         return numbers
 
-    def getAtomPositons(self):
+    def get_atom_positons(self):
         positions = []
         for atom in self.atoms:
             positions.append(atom.position)
@@ -81,13 +81,13 @@ class Crystal:
         #else:
         return positions         
             
-    def _reduceCoordinate(self, coordinate):
+    def _reduce_coordinate(self, coordinate):
         if np.any(coordinate>=np.array([1, 1, 1])) or np.any(coordinate<np.array([0, 0, 0])):
             _logger.warning("Coordinate {} oustide cell, reduces to a closer coordinate.".format(coordinate))
             coordinate = coordinate-(coordinate>=np.array([1, 1, 1]))*1
             coordinate = coordinate+(coordinate<np.array([0, 0, 0]))*1
 
-            return self._reduceCoordinate(coordinate)
+            return self._reduce_coordinate(coordinate)
         else:
             return coordinate
             

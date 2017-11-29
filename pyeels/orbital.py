@@ -10,8 +10,9 @@ class Orbital(object):
         :type  label: string
         :param label: The name of the orbital (examples: s,p,d,f)
         """
-        self.label = label
+        
         self.onsite = onsite
+        self.label = label
 
     def __repr__(self):
         """ Representation of the orbital object """

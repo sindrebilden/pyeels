@@ -6,7 +6,7 @@ import pythtb as tb
 import numpy as np
 
 class TightBinding:
-    """ Tight binding class constructed around the pythTB package """
+    """ Tight binding class constructed around the 'PythTB <http://physics.rutgers.edu/pythtb/>' package """
     def __init__(self, crystal):
         """ Create instance of the Tight binding model 
         
@@ -14,9 +14,9 @@ class TightBinding:
         :param crystal: a crystal object containing atoms
         """
         
-        self.crystal = crystal
-        self.crystal.brillouinZone.band_model = "Tight Binding"
-        self.spg = (crystal.lattice, crystal.getAtomPositons(), crystal.getAtomNumbers())
+        self._crystal = crystal
+        self._crystal.brillouinzone.band_model = "Tight Binding"
+        self._spg = (crystal.lattice, crystal.get_atom_positons(), crystal.get_atom_numbers())
         
         self._orbital_positons = []
         for atom in crystal.atoms:
@@ -24,7 +24,7 @@ class TightBinding:
                 self._orbital_positons.append(atom.position)        
         
         self.setGrid()
-        self.model = tb.tb_model(3,3,self.crystal.lattice, self._orbital_positons)
+        self.model = tb.tb_model(3,3,self._crystal.lattice, self._orbital_positons)
         
     def setGrid(self, mesh=3):
         """ Define the resolution of the reciprocal space
@@ -39,8 +39,8 @@ class TightBinding:
             mesh = np.asarray(mesh)
 
         if isinstance(mesh, np.ndarray):
-            self.crystal.brillouinZone.mesh = mesh
-            mapping, grid = spg.get_ir_reciprocal_mesh(mesh, self.spg, is_shift=[0, 0, 0])
+            self._crystal.brillouinzone.mesh = mesh
+            mapping, grid = spg.get_ir_reciprocal_mesh(mesh, self._spg, is_shift=[0, 0, 0])
             
             if np.any(mesh==np.array([1, 1, 1])):
                 mesh+= (mesh==np.array([1, 1, 1]))*1
@@ -48,9 +48,9 @@ class TightBinding:
 
             k_list = []
             for i, map_id in enumerate(mapping[np.unique(mapping)]):
-                k_list.append((grid[mapping==map_id]/(mesh-1)).tolist()) #np.dot(,self.cell.brillouinZone)
-            self.k_grid = k_grid
-            self.k_list = k_list
+                k_list.append((grid[mapping==map_id]/(mesh-1)).tolist()) #np.dot(,self.cell.brillouinzone)
+            self._k_grid = k_grid
+            self._k_list = k_list
         else:
             _logger.warning("Unknown type {} for mesh, try ndarray.".format(type(mesh)))
         
@@ -66,16 +66,16 @@ class TightBinding:
         :type  eig_vectors: bool
         :param eig_vectors: if eigen vectors are returned
         """
-        self.crystal.brillouinZone.bands = []
+        self._crystal.brillouinzone.bands = []
         
         if eig_vectors:
             energies, waves = self.model.solve_all(self.k_grid,eig_vectors=eig_vectors)
         else:
-            energies = self.model.solve_all(self.k_grid,eig_vectors=eig_vectors)
+            energies = self.model.solve_all(self._k_grid,eig_vectors=eig_vectors)
             waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=2)
         
         for i, band in enumerate(energies):
-            self.crystal.brillouinZone.add_band(Band(k_grid=self.k_grid, k_list=self.k_list, energies=band, waves=waves[i]))
+            self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, k_list=self._k_list, energies=band, waves=waves[i]))
 
     
     def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, ax=None):
@@ -131,20 +131,22 @@ class TightBinding:
             return ax, fig
 
     def __repr__(self):
-        return "Parabolic band model for: \n \n {} \n".format(self.crystal)
+        return "Parabolic band model for: \n \n {} \n".format(self._crystal)
 
 
 
 
 
-class WursiteSP3(TightBinding):
-    
+class WurtziteSP3(TightBinding):
+    """ A wurtzite Tight Binding model that includes s,px,py,pz orbitals at each site.
+    Model designed by 'Kobayashi et Al. 1983 <https://link.aps.org/doi/10.1103/PhysRevB.28.935>'"""
     def __init__(self, crystal):
         TightBinding.__init__(self, crystal)
         
     def get_hopping_parameters(self):
-        """ Get a list of all hopping parameters in the model"""
-        return [self.Vss, self.Vxx, self.Vxy, self.Vsapc, self.Vpasc ]
+        """ Get a list of all hopping parameters in the model
+        :returns: Vss, Vxx, Vxy, Vsapc, Vpasc. See :func:'set_hopping_parameters' for info."""
+        return [self._Vss, self._Vxx, self._Vxy, self._Vsapc, self._Vpasc ]
         
         
     def set_hopping_parameters(self, Vss, Vxx, Vxy, Vsapc, Vpasc):
@@ -165,43 +167,43 @@ class WursiteSP3(TightBinding):
         :type  Vpasc: float
         :param Vpasc: The hopping parameter from p of the anion to s of the cation
         """
-        self.Vss = Vss
-        self.Vxx = Vxx
-        self.Vxy = Vxy
-        self.Vsapc = Vsapc
-        self.Vpasc = Vpasc
+        self._Vss = Vss
+        self._Vxx = Vxx
+        self._Vxy = Vxy
+        self._Vsapc = Vsapc
+        self._Vpasc = Vpasc
         
         """###############     Vertical bonding system    ##################"""      
-        self.UVss = 0.25*Vss
-        self.UVzz = 0.25*(Vxx+2*Vxy)
-        self.UVxx = 0.25*(Vxx-Vxy)
-        self.UVsz = -0.25*np.sqrt(3)*Vsapc
-        self.UVzs =  0.25*np.sqrt(3)*Vpasc
+        self._UVss = 0.25*Vss
+        self._UVzz = 0.25*(Vxx+2*Vxy)
+        self._UVxx = 0.25*(Vxx-Vxy)
+        self._UVsz = -0.25*np.sqrt(3)*Vsapc
+        self._UVzs =  0.25*np.sqrt(3)*Vpasc
         
         
         """###############    Horizontal bonding system   ##################"""
-        self.UHss = self.UVss
+        self._UHss = self._UVss
         
-        self.UHyy = self.UVxx
-        self.UHzz = 1/9 * (8*self.UVxx +   self.UVzz)
-        self.UHxx = 1/9 * (  self.UVxx + 8*self.UVzz)
+        self._UHyy = self._UVxx
+        self._UHzz = 1/9 * (8*self._UVxx +   self._UVzz)
+        self._UHxx = 1/9 * (  self._UVxx + 8*self._UVzz)
         
-        self.UHsz = -1/3 * self.UVsz
-        self.UHzs = -1/3 * self.UVzs
+        self._UHsz = -1/3 * self._UVsz
+        self._UHzs = -1/3 * self._UVzs
         
-        self.UHsx = -2*np.sqrt(2)/3 * self.UVsz
-        self.UHxs = -2*np.sqrt(2)/3 * self.UVzs
+        self._UHsx = -2*np.sqrt(2)/3 * self._UVsz
+        self._UHxs = -2*np.sqrt(2)/3 * self._UVzs
         
-        self.UHzx =  2*np.sqrt(2)/9 * (self.UVzz-self.UVxx)
-        self.UHxz =  2*np.sqrt(2)/9 * (self.UVzz-self.UVxx)
+        self._UHzx =  2*np.sqrt(2)/9 * (self._UVzz-self._UVxx)
+        self._UHxz =  2*np.sqrt(2)/9 * (self._UVzz-self._UVxx)
 
         """##############################################################"""
 
         """  ONSITE  """
 
-        for i, initial_atom in enumerate(self.crystal.atoms):
+        for i, initial_atom in enumerate(self._crystal.atoms):
             for io, initial_orbital in enumerate(initial_atom.orbitals):
-                self.model.set_onsite(initial_orbital.onsite, ind_i=(i*len(self.crystal.atoms)+io), mode='reset')
+                self.model.set_onsite(initial_orbital.onsite, ind_i=(i*len(self._crystal.atoms)+io), mode='reset')
         
 
 
@@ -216,235 +218,158 @@ class WursiteSP3(TightBinding):
         
     def _M03(self, i, f):
         """ The M14 transition matrix designed by Kobayashi et Al."""
-        self.model.set_hop(self.UVss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, -1], mode='reset')
-        self.model.set_hop(self.UVsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, -1], mode='reset')
-        self.model.set_hop(self.UVzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, -1], mode='reset')
-        self.model.set_hop(self.UVzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, -1], mode='reset')
-        self.model.set_hop(self.UVxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, -1], mode='reset')
-        self.model.set_hop(self.UVxx, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, -1], mode='reset')            
+        self.model.set_hop(self._UVss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, -1], mode='reset')
+        self.model.set_hop(self._UVsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, -1], mode='reset')
+        self.model.set_hop(self._UVzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, -1], mode='reset')
+        self.model.set_hop(self._UVzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, -1], mode='reset')
+        self.model.set_hop(self._UVxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, -1], mode='reset')
+        self.model.set_hop(self._UVxx, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, -1], mode='reset')            
         
     def _M12(self, i, f):
         """ The M14 transition matrix designed by Kobayashi et Al."""
-        self.model.set_hop(self.UVss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UVsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UVzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UVzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UVxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UVxx, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, 0], mode='reset')  
+        self.model.set_hop(self._UVss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UVsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UVzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UVzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UVxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UVxx, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, 0], mode='reset')  
               
     def _M02(self, i, f):
         """ The M13 transition matrix designed by Kobayashi et Al."""
         #s-s
-        self.model.set_hop(self.UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(self._UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
         #s-z
-        self.model.set_hop(self.UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(self._UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
         #s-x
-        self.model.set_hop(     self.UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(     self._UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')
         #s-y
-        self.model.set_hop( np.sqrt(3)/2*self.UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-np.sqrt(3)/2*self.UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
         """##########################################"""
         #z-s
-        self.model.set_hop(self.UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(self._UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
         #z-z
-        self.model.set_hop(self.UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(self._UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
         #z-x
-        self.model.set_hop(     self.UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(     self._UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')
         #z-y
-        self.model.set_hop( np.sqrt(3)/2*self.UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-np.sqrt(3)/2*self.UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
         """#########################################"""
         #x-s
-        self.model.set_hop(     self.UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(     self._UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
         #x-z
-        self.model.set_hop(     self.UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(     self._UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
         #x-x
-        self.model.set_hop(     self.UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='add')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='add')        
+        self.model.set_hop(     self._UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='add')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='add')        
         #x-y
-        self.model.set_hop(-np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
         """###########################################"""
         #y-s
-        self.model.set_hop( np.sqrt(3)/2*self.UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-np.sqrt(3)/2*self.UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[-1, -1, 0], mode='reset')
         #y-z
-        self.model.set_hop( np.sqrt(3)/2*self.UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-np.sqrt(3)/2*self.UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[-1, -1, 0], mode='reset')
         #y-x
-        self.model.set_hop(-np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')  
+        self.model.set_hop(-np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[-1, -1, 0], mode='reset')  
         #y-y
-        self.model.set_hop(     self.UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='add')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='add')    
+        self.model.set_hop(     self._UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='reset')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, 0, 0], mode='add')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[-1, -1, 0], mode='add')    
 
     def _M13(self, i, f):
         """ The M24 transition matrix designed by Kobayashi et Al."""
         #s-s
-        self.model.set_hop(self.UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(self._UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHss, ind_i=i*4+0, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
         #s-z
-        self.model.set_hop(self.UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(self._UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHsz, ind_i=i*4+0, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
         #s-x
-        self.model.set_hop(   -self.UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(   -self._UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHsx, ind_i=i*4+0, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')
         #s-y
-        self.model.set_hop(-np.sqrt(3)/2*self.UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/2*self.UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHsx, ind_i=i*4+0, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
         """##########################################"""
         #z-s
-        self.model.set_hop(self.UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(self._UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzs, ind_i=i*4+1, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
         #z-z
-        self.model.set_hop(self.UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(self.UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(self._UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(self._UHzz, ind_i=i*4+1, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
         #z-x
-        self.model.set_hop(   -self.UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(   -self._UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHzx, ind_i=i*4+1, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')
         #z-y
-        self.model.set_hop(-np.sqrt(3)/2*self.UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/2*self.UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHzx, ind_i=i*4+1, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
         """#########################################"""
         #x-s
-        self.model.set_hop(   -self.UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(   -self._UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHxs, ind_i=i*4+2, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
         #x-z
-        self.model.set_hop(   -self.UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(0.5*self.UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(   -self._UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(0.5*self._UHxz, ind_i=i*4+2, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
         #x-x
-        self.model.set_hop(     self.UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 0, 0], mode='add')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 1, 0], mode='add')        
+        self.model.set_hop(     self._UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHxx, ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 0, 0], mode='add')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+2, ind_j=f*4+2, ind_R=[1, 1, 0], mode='add')        
         #x-y
-        self.model.set_hop(-np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+2, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
         """###########################################"""
         #y-s
-        self.model.set_hop(-np.sqrt(3)/2*self.UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/2*self.UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHxs, ind_i=i*4+3, ind_j=f*4+0, ind_R=[1, 1, 0], mode='reset')
         #y-z
-        self.model.set_hop(-np.sqrt(3)/2*self.UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/2*self.UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(-np.sqrt(3)/2*self._UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/2*self._UHxz, ind_i=i*4+3, ind_j=f*4+1, ind_R=[1, 1, 0], mode='reset')
         #y-x
-        self.model.set_hop(-np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop( np.sqrt(3)/4*(self.UHxx-self.UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')  
+        self.model.set_hop(-np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop( np.sqrt(3)/4*(self._UHxx-self._UHyy), ind_i=i*4+3, ind_j=f*4+2, ind_R=[1, 1, 0], mode='reset')  
         #y-y
-        self.model.set_hop(     self.UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
-        self.model.set_hop(-0.5*self.UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 0, 0], mode='add')
-        self.model.set_hop(3/4*(self.UHxx+self.UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 1, 0], mode='add')        
+        self.model.set_hop(     self._UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[0, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 0, 0], mode='reset')
+        self.model.set_hop(-0.5*self._UHyy, ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 1, 0], mode='reset')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 0, 0], mode='add')
+        self.model.set_hop(3/4*(self._UHxx+self._UHyy), ind_i=i*4+3, ind_j=f*4+3, ind_R=[1, 1, 0], mode='add')        
     
-    def f0(self,conjugate=False):
-    
-        conjugate = -2*conjugate+1
-
-        f = np.array([
-            [ 0,  0, 0],
-            [-1,  0, 0],
-            [-1, -1, 0]
-        ])*conjugate
-
-        w = np.array([
-            1, 
-            1, 
-            1
-        ])
-        return f,w
-    
-    def f1(self,conjugate=False):
-    
-        conjugate = -2*conjugate+1
-
-        f = np.array([
-            [ 0,  0, 0],
-            [-1,  0, 0],
-            [-1, -1, 0]
-        ])*conjugate
-
-        w = np.array([
-            1, 
-            -1/2, 
-            -1/2
-        ])
-        return f,w
-    
-    def f2(self,conjugate=False):
-    
-        conjugate = -2*conjugate+1
-
-        f = np.array([
-            [ 0,  0, 0],
-        ])*conjugate
-
-        w = np.array([
-            1
-        ])
-        return f,w
-    
-    def fplus(self,conjugate=False):
-    
-        conjugate = -2*conjugate+1
-
-        f = np.array([
-            [-1,  0, 0],
-            [-1, -1, 0],
-        ])*conjugate
-
-        w = np.array([
-            1, 
-            1
-        ])
-        return f,w
-    
-    
-    def fminus(self,conjugate=False):
-    
-        conjugate = -2*conjugate+1
-
-        f = np.array([
-            [-1,  0, 0],
-            [-1, -1, 0],
-        ])*conjugate
-
-        w = np.array([
-            1, 
-            -1
-        ])
-        return f,w
     
     def __repr__(self):
-        return "Wursite SP3 Tight binding model for: \n \n {} \n".format(self.crystal)
+        return "Wursite SP3 Tight binding model for: \n \n {} \n".format(self._crystal)

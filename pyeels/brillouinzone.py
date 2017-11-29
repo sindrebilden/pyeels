@@ -8,11 +8,11 @@ class BrillouinZone:
         :type  lattice: ndarray
         :param lattice: a 3x3 array with lattice parameters [a*,b*,c*]
         """
-        self._setReciprocalSpace(crystal)
+        self._set_reciprocal_space(crystal)
         
         self.bands = []     
 
-    def _setReciprocalSpace(self, crystal):
+    def _set_reciprocal_space(self, crystal):
         """ Constructs the reciprocal space from a crystal objec
         
         :type  crystal: crystal object

@@ -1,21 +1,22 @@
 import hyperspy.api as hs
-import _spectrum
+from pyeels.cpyeels import calculate_spectrum
+
 import numpy as np
 
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
 
 
 class EELS:
     
     temperature = 0
-    fermiEnergy = 0
+    fermienergy = 0
     
     def __init__(self, crystal, name=None):
         self.crystal = crystal
         
 
-    def setDiffractionZone(self, zone=None, bins=None):
+    def set_diffractionzone(self, zone=None, bins=None):
         """ Define the resolution of the diffraction space, similar to the CCD in TEM
         
         :type  zone: ndarray
@@ -25,12 +26,12 @@ class EELS:
         :param bins: The number of bins in diffraction space, a value corresponding to the resolution of the brillouin zone is calculated if no value given. Will allways round up to an odd number
         """
         if not zone:
-            self.zone = np.max(np.abs(self.crystal.brillouinZone.lattice),axis=0)
+            self.zone = np.max(np.abs(self.crystal.brillouinzone.lattice),axis=0)
         else:
             self.zone = zone
             
         if not bins:
-            self.bins = np.round(self.crystal.brillouinZone.mesh).astype(int) #/1.3 is a bad temporarly solution
+            self.bins = np.round(self.crystal.brillouinzone.mesh).astype(int) #/1.3 is a bad temporarly solution
         else:
             self.bins = bins
         
@@ -39,7 +40,22 @@ class EELS:
                 self.bins[i] += 1
         
 
-    def setMeta(self, name, authors, title=None, notes=None):
+    def set_meta(self, name, authors, title=None, notes=None):
+        """ Set the user defined metadata
+        
+        :type  name: str
+        :param name: the name of the simulation experiment
+        
+        :type  authors: str, list
+        :param authors: The name of authors contributing to the specrum
+
+        :type  title: str
+        :param title: The title in the spectrum, should describe the crystal system
+
+        :type  notes: string
+        :param notes: Additional notes that is convenient for a user
+        """
+        
         self.name = name
         self.authors = authors
         
@@ -53,7 +69,7 @@ class EELS:
         else:
             self.notes = notes
         
-    def _createMeta(self):
+    def _create_meta(self):
         """ Generate and organize info into a matadata dictionary recognized by hyperspy
         :returns: nested dictionary of information """
 
@@ -71,7 +87,7 @@ class EELS:
         metadata['Signal']['signal_type'] = None
 
         metadata['Sample'] = {}
-        metadata['Sample']['elements'] = self.crystal.getAtomNumbers()
+        metadata['Sample']['elements'] = self.crystal.get_atom_numbers()
 
 
         metadata['Sample']['system'] = {}
@@ -80,28 +96,28 @@ class EELS:
         for i in range(len(self.crystal.lattice)):
             metadata['Sample']['system']['cell'][axes[i]] = self.crystal.lattice[i]
 
-        metadata['Sample']['system']['fermiEnergy'] = self.fermiEnergy
+        metadata['Sample']['system']['fermienergy'] = self.fermienergy
         metadata['Sample']['system']['temperature'] = self.temperature
 
-        metadata['Sample']['system']['model'] = self.crystal.brillouinZone.band_model
+        metadata['Sample']['system']['model'] = self.crystal.brillouinzone.band_model
         metadata['Sample']['system']['bands'] = {}
-        metadata['Sample']['system']['bands']['count'] = len(self.crystal.brillouinZone.bands)
-        for i, band in enumerate(self.crystal.brillouinZone.bands):
-            metadata['Sample']['system']['bands']["band {}".format(i)] = self.crystal.brillouinZone.bands[i]
+        metadata['Sample']['system']['bands']['count'] = len(self.crystal.brillouinzone.bands)
+        for i, band in enumerate(self.crystal.brillouinzone.bands):
+            metadata['Sample']['system']['bands']["band {}".format(i)] = self.crystal.brillouinzone.bands[i]
                 
         metadata['Sample']['description'] = None
 
         return metadata
 
 
-    def createSignal(self, data, eBin):
+    def _create_signal(self, data, eBin):
         """Organize and convert data and axes into a hyperspy signal 
         :param data: the resulting array from simulation
         :param eBin: the energy binning used in simulation
         :returns: hyperspy signal 
         """
 
-        metadata = self._createMeta()
+        metadata = self._create_meta()
 
         s = hs.signals.BaseSignal(data, metadata=metadata)
 
@@ -126,14 +142,14 @@ class EELS:
         return p
 
     
-    def calculateScatteringCrossSection(self, energyBins, fermiEnergy=None, temperature=None):
+    def calculate_eels(self, energyBins, fermienergy=None, temperature=None):
         """ Calculate the momentum dependent scattering cross section of the system,
         
         :type  energyBins: ndarray
         :param energyBins: The binning range 
         
-        :type  fermiEnergy: float
-        :param fermiEnergy: a spesific fermiEnergy in eV, if not defined the standard fermiEnergy is used
+        :type  fermienergy: float
+        :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
         
         :type  temperature: float
         :param temperature: a spesific temperature in Kelvin, if not defined the standard temperature is used
@@ -141,8 +157,8 @@ class EELS:
 
         if temperature:
             self.temperature = temperature
-        if fermiEnergy:
-            self.fermiEnergy = fermiEnergy
+        if fermienergy:
+            self.fermienergy = fermienergy
 
         
 
@@ -152,72 +168,89 @@ class EELS:
             energyBands.append(band.energies)
             waveStates.append(band.waves)
 
-        #data = _spectrum.calculate_spectrum(diffractionZone, diffractionBins, self.cell.brillouinZone, self.reciprocalGrid()[1], np.stack(energyBands, axis=1),  np.stack(waveStates, axis=1), energyBins, self.fermiEnergy, self.temperature)
+        data = calculate_spectrum(
+                self.zone, 
+                self.bins, 
+                self.crystal.brillouinzone.lattice, 
+                initial_band.k_list,
+                np.stack(energyBands, axis=1),  
+                np.stack(waveStates, axis=1), 
+                self.energyBins, 
+                self.fermienergy, 
+                self.temperature
+            )       
 
-        return self.createSignal(data, energyBins)
+        return self._create_signal(data, energyBins)
         
-    def multiCalculateScatteringCrossSection(self, energyBins, bands=(None,None), fermiEnergy=None, temperature=None):
+    def calculate_eels_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None):
+        """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
+        
+        :type  energyBins: ndarray
+        :param energyBins: The binning range 
+        
+        :type  fermienergy: float
+        :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
+        
+        :type  temperature: float
+        :param temperature: a spesific temperature in Kelvin, if not defined the standard temperature is used
+
+        :type  max_cpu: int
+        :param max_cpu: The user defined maximum allowed number of CPU-cores, if not, the hardware limit is used. 
+        """
+
+
         if temperature:
             self.temperature = temperature
-        if fermiEnergy:
-            self.fermiEnergy = fermiEnergy
+        if fermienergy:
+            self.fermienergy = fermienergy
 
         self.energyBins = energyBins
         
 
-        bands = self.crystal.brillouinZone.bands[bands[0]:bands[1]]
+        bands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
 
         transitions = []
         for i, initial in enumerate(bands):
             for f, final in enumerate(bands[(i+1):]):
                 f += i+1
                 transitions.append((i,f, initial, final))
-        
-        p = Pool(processes=min(len(transitions),4))
-        signals = p.map(self.calculate, transitions)
+
+        if not max_cpu:
+            max_cpu = cpu_count()
+
+        if max_cpu > cpu_count():
+            max_cpu = cpu_count()
+
+        p = Pool(processes=min(len(transitions),max_cpu))
+        signals = p.map(self._calculate, transitions)
         p.close()
 
         signal_total = signals[0]
         for signal in signals[1:]:
             signal_total += signal
         
-        return self.createSignal(signal_total, energyBins)
+        return self._create_signal(signal_total, energyBins)
                 
-    def calculate(self, transition):
+    def _calculate(self, transition):
             i, f, initial_band, final_band = transition
             
             energyBands = [initial_band.energies, final_band.energies]
             waveStates =  [initial_band.waves, final_band.waves]
             
-            return _spectrum.calculate_spectrum(
+            return calculate_spectrum(
                 self.zone, 
                 self.bins, 
-                self.crystal.brillouinZone.lattice, 
+                self.crystal.brillouinzone.lattice, 
                 initial_band.k_list,
                 np.stack(energyBands, axis=1),  
                 np.stack(waveStates, axis=1), 
                 self.energyBins, 
-                self.fermiEnergy, 
+                self.fermienergy, 
                 self.temperature
             )       
 
         
     def __repr__(self):
         string = "EELS Signal Calculator:\n\nSignal name:\n\t{}\nAuthors:\n\t{}\nTitle:\n\t{}\nNotes:\n\t{}\n\n".format(self.name, self.authors, self.title, self.notes)
-        string += "Temperature: {} K\tFermiEnergy: {} eV\n".format(self.temperature, self.fermiEnergy)
+        string += "Temperature: {} K\tFermiEnergy: {} eV\n".format(self.temperature, self.fermienergy)
         return string
-
-
-
-class thread_object:
-    def __init__(self, initial_band, final_band, signal):
-        """ Create instance of a thread object, helpes sorting data
-        
-        :type  signal: ndarray
-        :param signal: the signal-array from code
-        """
-        self.initial_band = initial_band
-        self.final_band = final_band
-        self.signal = signal
-    def __repr__(self):
-        return "From {} to {}\n".format(self.initial_band, self.final_band)

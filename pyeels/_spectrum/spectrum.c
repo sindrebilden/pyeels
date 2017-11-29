@@ -422,7 +422,7 @@ static struct PyModuleDef myModule = {
 	methods
 };
 
-PyMODINIT_FUNC PyInit__spectrum (void)
+PyMODINIT_FUNC PyInit_cpyeels (void)
 {
     import_array();
     return PyModule_Create(&myModule);

@@ -3,7 +3,7 @@ from pyeels.orbital import Orbital
 
 class Atom(object):
     """ Atom object hosting orbitals """
-    def __init__(self, position, number):
+    def __init__(self, position=np.array([0, 0, 0]), number=0):
         """ Initialize an instance of atom
         
         :type  position: ndarray, list, tuple
@@ -31,7 +31,20 @@ class Atom(object):
             return "Placed {} orbital with onsite {}, on {}".format(orbital.label,orbital.onsite, self)
         else:
             _logger.warning("An orbital with label {} allready exist, try different label.".format(orbital.label))
-        
+    
+    def set_position(self, position):
+        """ Set the position of the atom
+        :type  position: ndarray, list, tuple
+        :param position: The onsite energy of the orbital
+        """
+        self.position = position
+
+    def set_number(self, number):
+        """ Set the atomic number
+        :type  number: int
+        :param number: The atomic number of the atom (Z)
+        """
+        self.position = position
         
     def number_of_orbitals(self):
         """ Returns the number of orbitals in the atom 
