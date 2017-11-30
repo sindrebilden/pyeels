@@ -71,14 +71,19 @@ from pyeels import EELS
 
 mySystem = EELS(myCrystal)
 mySystem.temperature = 0    # Absolute zero
-mySystem.fermiEnergy = 0.5  # Placing the fermi level at center of the band gap
+mySystem.fermienergy = 0.5  # Placing the fermi level at center of the band gap
 
-mySystem.set_meta(name="My test sample", author=["Supervisor", "Student"], title="myCrystal", notes="This model is just an example." )
+mySystem.set_meta(
+	name="My test sample", 
+	author=["Supervisor", "Student"], 
+	title="myCrystal", 
+	notes="This model is just an example." 
+	)
 
 # The resolution of the diffraction zone, (can relate to the CCD-resolution)
 mySystem.set_diffraction_zone() #No input autogenerates a zone
 
-mySignal = mySystem.calculateScatteringCrossSection(energyBins=np.linspace(0,4,50))
+mySignal = mySystem.calculate_eels_multiproc(energyBins=np.linspace(0,4,50))
 
 mySignal.plot()
 ```
