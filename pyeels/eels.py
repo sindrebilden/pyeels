@@ -174,7 +174,8 @@ class EELS:
                 self.crystal.brillouinzone.lattice, 
                 initial_band.k_list,
                 np.stack(energyBands, axis=1),  
-                np.stack(waveStates, axis=1), 
+                np.stack(waveStates, axis=1).real, 
+                np.stack(waveStates, axis=1).imag,
                 self.energyBins, 
                 self.fermienergy, 
                 self.temperature
@@ -182,12 +183,32 @@ class EELS:
 
         return self._create_signal(data, energyBins)
         
-    def calculate_eels_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None):
+    def compress_singnals(self, singnals):
+        """ Takes a list of spectra and adds them togheter to one spectrum
+        
+        :type  signals: list
+        :param signals: List of hyperspy signal or ndarray
+
+        :returns: The singals added into one signal
+        """
+
+        signal_total = signals[0]
+        for signal in signals[1:]:
+            signal_total = np.add(signal_total,signal)
+
+        return signal_total
+
+
+
+    def calculate_eels_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
         
         :type  energyBins: ndarray
         :param energyBins: The binning range 
         
+        :type  bands: tuple
+        :param bands: Tuple of start index and end index of the bands included from the band structure
+
         :type  fermienergy: float
         :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
         
@@ -196,6 +217,11 @@ class EELS:
 
         :type  max_cpu: int
         :param max_cpu: The user defined maximum allowed number of CPU-cores, if not, the hardware limit is used. 
+
+        :type  compact: bool
+        :param compact: If set True, all transitions are added to one spectrum. If False a list of spectra is returned with transitions from and to individual bands. 
+        
+        :returns: An individual hyperspy spectrum or list of spectra, see :param: compact for info
         """
 
 
@@ -207,11 +233,11 @@ class EELS:
         self.energyBins = energyBins
         
 
-        bands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
+        energybands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
 
         transitions = []
-        for i, initial in enumerate(bands):
-            for f, final in enumerate(bands[(i+1):]):
+        for i, initial in enumerate(energybands):
+            for f, final in enumerate(energybands[(i+1):]):
                 f += i+1
                 transitions.append((i,f, initial, final))
 
@@ -224,26 +250,33 @@ class EELS:
         p = Pool(processes=min(len(transitions),max_cpu))
         signals = p.map(self._calculate, transitions)
         p.close()
+        p.join()
 
-        signal_total = signals[0]
-        for signal in signals[1:]:
-            signal_total += signal
-        
-        return self._create_signal(signal_total, energyBins)
+        if compact:
+            signal_total = self.compress_spectra(signals)
+            return self._create_signal(signal_total, energyBins)
+        else:
+            original_title = self.title
+            for i, signal in enumerate(signals):
+                self.title = original_title+" from band {} to {}".format(transitions[i][0]+bands[0],transitions[i][1]+bands[0])
+                signals[i] = self._create_signal(signal, energyBins)
+            self.title = original_title
+
+            return signals
                 
     def _calculate(self, transition):
             i, f, initial_band, final_band = transition
             
             energyBands = [initial_band.energies, final_band.energies]
             waveStates =  [initial_band.waves, final_band.waves]
-            
             return calculate_spectrum(
                 self.zone, 
                 self.bins, 
                 self.crystal.brillouinzone.lattice, 
                 initial_band.k_list,
                 np.stack(energyBands, axis=1),  
-                np.stack(waveStates, axis=1), 
+                np.stack(waveStates, axis=1).real, 
+                np.stack(waveStates, axis=1).imag,
                 self.energyBins, 
                 self.fermienergy, 
                 self.temperature

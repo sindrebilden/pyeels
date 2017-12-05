@@ -14,19 +14,22 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     PyObject *brillouinZone = NULL;
     PyObject *k_grid = NULL;
     PyObject *energy_bands = NULL;
-    PyObject *wave_vectors = NULL;
+    PyObject *wave_real = NULL;
+    PyObject *wave_imag = NULL;
     PyObject *energy_bins = NULL;
    
     double fermi_energy; // Shuld be regular float
     double temperature;
 
-    if (!PyArg_ParseTuple(args, "OOOOOOOdd", &diffractionZone, &diffractionBins, &brillouinZone, &k_grid, &energy_bands, &wave_vectors, &energy_bins, &fermi_energy, &temperature))
+    if (!PyArg_ParseTuple(args, "OOOOOOOOdd", &diffractionZone, &diffractionBins, &brillouinZone, &k_grid, &energy_bands, &wave_real, &wave_imag, &energy_bins, &fermi_energy, &temperature))
         return NULL;
+
+    printf("Process started..\n");
 
     npy_intp *shape;
 
     int nBands = PyArray_SHAPE(energy_bands)[1];
-    int nWaves = PyArray_SHAPE(wave_vectors)[2];
+    int nWaves = PyArray_SHAPE(wave_real)[2];
     int k_size = PyList_Size(k_grid);
 
     /*
@@ -189,7 +192,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     energy_offset = *(double *) PyArray_GETPTR1(energy_bins,0);
     dE= *(double *) PyArray_GETPTR1(energy_bins,1)-energy_offset;
 
-    printf("ENERGYOFFSET:%.2f\tENERGYSTEP:%.2f\n",energy_offset,dE);
+    //printf("ENERGYOFFSET:%.2f\tENERGYSTEP:%.2f\n",energy_offset,dE);
 
 
 
@@ -215,7 +218,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     double dQ[3] = {*(double*)PyArray_GETPTR1(diffractionZone,0)/(dims[1]), *(double*)PyArray_GETPTR1(diffractionZone,1)/(dims[2]), *(double*)PyArray_GETPTR1(diffractionZone,2)/(dims[3])};
 
 
-
+/*
     printf("MOMENT_STEP: ");
     for(int i = 0; i < 3; i++){
         printf("%.3f,  ",dQ[i]);
@@ -229,7 +232,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
         } 
         printf("\n");
     }printf("\n");
-
+*/
 
 
     double ****EELS = (double****)malloc( dims[0]*dims[1]*dims[2]*dims[3] * sizeof(double***));
@@ -257,16 +260,22 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     double *final_energy;
     double energyTransfer;
     double probability;
-    double v_i;
-    double v_f;
+    double p_real;
+    double p_imag;
+    double v_real_i;
+    double v_real_f;
+    double v_imag_i;
+    double v_imag_f;
     double momTrans[3] = {0.0,0.0,0.0};
     double q_squared;
     double fermiValueI, fermiValue;
 
+/*
     printf("\n\nEf=%.3f \t",fermi_energy);
     printf("T=%.3f K ",temperature);
+*/
     temperature = temperature * 8.93103448276e-5;
-    printf("(kT=%.3f eV)\n\n",temperature);
+//    printf("(kT=%.3f eV)\n\n",temperature);
     
 
     int iterations = 0;
@@ -277,7 +286,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
             for (int initial_band = 0; initial_band < nBands-1; initial_band++){
                 initial_energy = (double *) PyArray_GETPTR2(energy_bands, initial_k, initial_band);
                 fermiValueI = fermiDirac(*initial_energy,fermi_energy,temperature);
-                if (fermiValueI < 1e-5) continue; //Speeds up calculation
+                if (fermiValueI < 1e-7) continue; //Speeds up calculation
  
             
                 for (int final_band = initial_band; final_band < nBands; final_band++){
@@ -286,21 +295,28 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 
                     fermiValue = fermiValueI * (1.0-fermiDirac(*final_energy, fermi_energy, temperature));
 
-                    if (fermiValue < 1e-5) continue; //Speeds up calculation
+                    if (fermiValue < 1e-7) continue; //Speeds up calculation
 
 
                     energyTransfer = *final_energy-*initial_energy;
                     energyIndex = (energyTransfer-energy_offset)/dE;
                     //printf("%.3f - %.3f = %.3f => [%i]\t", energyTransfer, energy_offset, (energyTransfer-energy_offset), energyIndex );
-                    probability = 0;
+
+                    p_real = 0;
+                    p_imag = 0;
                     
-                    for (int v = 0; v < nWaves; v++){                      
-                        v_i = *(double *) PyArray_GETPTR3(wave_vectors, initial_k, initial_band,v);
-                        v_f = *(double *) PyArray_GETPTR3(wave_vectors, final_k, final_band,v);
-                        //printf("(%f * %f)\n", v_i, v_f);,
-                        probability += v_i * v_f;
+                    for (int v = 0; v < nWaves; v++){      
+                        v_real_i = *(double *) PyArray_GETPTR3(wave_real, initial_k, initial_band,v);
+                        v_real_f = *(double *) PyArray_GETPTR3(wave_real, final_k, final_band,v);
+                        
+                        v_imag_i = *(double *) PyArray_GETPTR3(wave_imag, initial_k, initial_band,v);
+                        v_imag_f = *(double *) PyArray_GETPTR3(wave_imag, final_k, final_band,v);
+
+                        p_real += (v_real_f*v_real_i+v_imag_f*v_imag_i);
+                        p_imag += (v_real_f*v_imag_i-v_imag_f*v_real_i);
+
                     }
-                    probability = probability*probability;
+                    probability = (p_real*p_real+p_imag*p_imag);
                 
                     //printf("\t %.2f \t %i \t|\n",energyTransfer, energyIndex);
 
@@ -402,7 +418,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 
 
 
-    printf("\n\n Iterations: %i \n\n", iterations);
+    printf("Process ended with %i sucessful transitions..\n", iterations);
     return Py_BuildValue("O", ArgsArray);
     //return Py_BuildValue("d", temperature);
 }
