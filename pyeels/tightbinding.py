@@ -69,7 +69,7 @@ class TightBinding:
         self._crystal.brillouinzone.bands = []
         
         if eig_vectors:
-            energies, waves = self.model.solve_all(self.k_grid,eig_vectors=eig_vectors)
+            energies, waves = self.model.solve_all(self._k_grid,eig_vectors=eig_vectors)
         else:
             energies = self.model.solve_all(self._k_grid,eig_vectors=eig_vectors)
             waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=2)
