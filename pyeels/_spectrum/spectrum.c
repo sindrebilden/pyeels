@@ -25,6 +25,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
         return NULL;
 
     printf("Process started..\n");
+    if(PyErr_CheckSignals()) goto aborted;    
 
     npy_intp *shape;
 
@@ -276,6 +277,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 */
     temperature = temperature * 8.93103448276e-5;
 //    printf("(kT=%.3f eV)\n\n",temperature);
+
     
 
     int iterations = 0;
@@ -317,6 +319,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 
                     }
                     probability = (p_real*p_real+p_imag*p_imag);
+
                 
                     //printf("\t %.2f \t %i \t|\n",energyTransfer, energyIndex);
 
@@ -335,6 +338,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
                         for (int  final_k_index = 0; final_k_index < PyList_Size(final_k_list); final_k_index++){
                             final_k_vec = PyList_GetItem(final_k_list, final_k_index);
                             
+                            if(PyErr_CheckSignals()) goto aborted;
 
                             //for(int qAxis = 0; qAxis < 3; qAxis++) {
                                 //momProj[qAxis] = 0;
@@ -382,6 +386,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
                                     //}
                                 }
                             }
+
 //                            printf("\n");
                         }                
                     }
@@ -419,8 +424,14 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 
 
     printf("Process ended with %i sucessful transitions..\n", iterations);
+
+
     return Py_BuildValue("O", ArgsArray);
     //return Py_BuildValue("d", temperature);
+
+    aborted:
+        printf("Process aborted. \n");
+        return Py_None;
 }
 
 

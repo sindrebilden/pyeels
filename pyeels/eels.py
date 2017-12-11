@@ -1,11 +1,10 @@
 import hyperspy.api as hs
 from pyeels.cpyeels import calculate_spectrum
-
 import numpy as np
-
 from multiprocessing import Pool, cpu_count
-
-
+import os
+import signal as sign
+import time
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -249,10 +248,19 @@ class EELS:
         if max_cpu > cpu_count():
             max_cpu = cpu_count()
 
-        p = Pool(processes=min(len(transitions),max_cpu))
-        signals = p.map(self._calculate, transitions)
-        p.close()
-        p.join()
+        p = Pool(min(len(transitions),max_cpu), self._init_worker)
+        r = p.map_async(self._calculate, transitions)
+        try:
+            r.wait()
+        except KeyboardInterrupt:
+            _logger.warning("Terminating process pool..")
+            p.terminate()
+            p.join()
+            return None
+        else:
+            p.close()
+            p.join()
+            signals = r.get()
 
         if compact:
             signal_total = self.compress_spectra(signals)
@@ -271,6 +279,7 @@ class EELS:
             
             energyBands = [initial_band.energies, final_band.energies]
             waveStates =  [initial_band.waves, final_band.waves]
+
             return calculate_spectrum(
                 self.zone, 
                 self.bins, 
@@ -284,6 +293,8 @@ class EELS:
                 self.temperature
             )       
 
+    def _init_worker(self):
+        sign.signal(sign.SIGINT, sign.SIG_IGN)
         
     def __repr__(self):
         string = "EELS Signal Calculator:\n\nSignal name:\n\t{}\nAuthors:\n\t{}\nTitle:\n\t{}\nNotes:\n\t{}\n\n".format(self.name, self.authors, self.title, self.notes)
