@@ -6,6 +6,8 @@ import numpy as np
 from multiprocessing import Pool, cpu_count
 
 
+import logging
+_logger = logging.getLogger(__name__)
 
 class EELS:
     

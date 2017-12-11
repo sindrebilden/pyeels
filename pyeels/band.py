@@ -1,4 +1,6 @@
 import numpy as np
+import logging
+_logger = logging.getLogger(__name__)
 
 class Band:
     

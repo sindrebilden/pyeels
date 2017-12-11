@@ -1,5 +1,7 @@
 import numpy as np
 from pyeels.band import Band
+import logging
+_logger = logging.getLogger(__name__)
 
 class BrillouinZone:
     def __init__(self, crystal):

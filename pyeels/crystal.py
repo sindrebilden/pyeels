@@ -2,6 +2,8 @@ import numpy as np
 import spglib as spg
 from pyeels.atom import Atom
 from pyeels.brillouinzone import BrillouinZone
+import logging
+_logger = logging.getLogger(__name__)
 
 class Crystal:
     def __init__(self, lattice):

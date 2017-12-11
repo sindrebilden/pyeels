@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import spglib as spg
 import pythtb as tb
 import numpy as np
+import logging
+_logger = logging.getLogger(__name__)
 
 class TightBinding:
     """ Tight binding class constructed around the 'PythTB <http://physics.rutgers.edu/pythtb/>' package """

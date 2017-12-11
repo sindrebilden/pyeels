@@ -1,5 +1,7 @@
 import numpy as np
 from pyeels.orbital import Orbital
+import logging
+_logger = logging.getLogger(__name__)
 
 class Atom(object):
     """ Atom object hosting orbitals """
