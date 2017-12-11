@@ -41,6 +41,10 @@ class TightBinding:
             mesh = np.asarray(mesh)
 
         if isinstance(mesh, np.ndarray):
+            for i in range(len(mesh)):
+                if (mesh[i]%2==0):
+                    mesh[i] += 1
+
             self._crystal.brillouinzone.mesh = mesh
             mapping, grid = spg.get_ir_reciprocal_mesh(mesh, self._spg, is_shift=[0, 0, 0])
             

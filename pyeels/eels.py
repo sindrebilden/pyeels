@@ -1,5 +1,5 @@
 import hyperspy.api as hs
-from pyeels.cpyeels import calculate_spectrum
+from pyeels.cpyeels import calculate_spectrum, calculate_momentum_squared
 import numpy as np
 from multiprocessing import Pool, cpu_count
 import os
@@ -127,9 +127,9 @@ class EELS:
         for i in range(len(data.shape)-1):
             name = names[i+1]
             s.axes_manager[2-i].name = name
-            s.axes_manager[name].scale = self.zone[i]/(self.bins[i]-1)
+            s.axes_manager[name].scale = 1.0/(self.crystal.brillouinzone.mesh[i]-1) #self.crystal.brillouinzone.lattice[i]
             s.axes_manager[name].units = "AA-1"
-            s.axes_manager[name].offset = -self.zone[i]/2
+            s.axes_manager[name].offset = -0.5#-self.crystal.brillouinzone.lattice[i]/2
         i += 1
         name = names[0]
         s.axes_manager[i].name = name
@@ -170,8 +170,7 @@ class EELS:
             waveStates.append(band.waves)
 
         data = calculate_spectrum(
-                self.zone, 
-                self.bins, 
+                self.crystal.brillouinzone.mesh,
                 self.crystal.brillouinzone.lattice, 
                 initial_band.k_list,
                 np.stack(energyBands, axis=1),  
@@ -270,14 +269,22 @@ class EELS:
             p.join()
             signals = r.get()
 
+
+        q_squared = calculate_momentum_squared(
+                self.crystal.brillouinzone.mesh,
+                self.crystal.brillouinzone.lattice,
+                self.energyBins
+                )
+        q_squared[q_squared[:]==0] == np.nan
+
         if compact:
-            signal_total = self.compress_spectra(signals)
+            signal_total = np.nan_to_num(self.compress_spectra(signals)/q_squared)
             return self._create_signal(signal_total, energyBins)
         else:
             original_title = self.title
             for i, signal in enumerate(signals):
-                self.title = original_title+" from band {} to {}".format(transitions[i][0]+bands[0],transitions[i][1]+bands[0])
-                signals[i] = self._create_signal(signal, energyBins)
+                self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
+                signals[i] = self._create_signal(np.nan_to_num(signal/q_squared), energyBins)
             self.title = original_title
 
             return signals
@@ -289,8 +296,7 @@ class EELS:
             waveStates =  [initial_band.waves, final_band.waves]
 
             return calculate_spectrum(
-                self.zone, 
-                self.bins, 
+                self.crystal.brillouinzone.mesh,
                 self.crystal.brillouinzone.lattice, 
                 initial_band.k_list,
                 np.stack(energyBands, axis=1),  
