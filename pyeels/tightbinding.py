@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import spglib as spg
 import pythtb as tb
 import numpy as np
+import logging
+_logger = logging.getLogger(__name__)
 
 class TightBinding:
     """ Tight binding class constructed around the 'PythTB <http://physics.rutgers.edu/pythtb/>' package """
@@ -72,13 +74,13 @@ class TightBinding:
             energies, waves = self.model.solve_all(self._k_grid,eig_vectors=eig_vectors)
         else:
             energies = self.model.solve_all(self._k_grid,eig_vectors=eig_vectors)
-            waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=2)
+            waves = np.stack([np.zeros(energies.shape,dtype=np.complex128),np.ones(energies.shape,dtype=np.complex128)], axis=2)
         
         for i, band in enumerate(energies):
             self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, k_list=self._k_list, energies=band, waves=waves[i]))
 
     
-    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, ax=None):
+    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, ax=None):
         """ Plot a representation of the band structure
         
         :type  ylim: tuple, list
@@ -98,7 +100,7 @@ class TightBinding:
         # call function k_path to construct the actual path
         (k_vec,k_dist,k_node)=self.model.k_path(path,301,report=False)
 
-        evals =self.model.solve_all(k_vec)
+        evals = self.model.solve_all(k_vec)
         
         fig = None
         if not ax:
@@ -122,7 +124,7 @@ class TightBinding:
                     ax.axvline(x=k_node[n],linewidth=0.5, color='k')
     
         for band in evals[bands[0]:bands[1]]:
-            ax.plot(k_dist, band, color=color)
+            ax.plot(k_dist, band, color=color, linestyle=linestyle, marker=marker)
 
         if not fig:
             return ax

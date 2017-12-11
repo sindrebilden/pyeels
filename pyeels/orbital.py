@@ -1,3 +1,6 @@
+import logging
+_logger = logging.getLogger(__name__)
+
 class Orbital(object):
     """ Orbital object with a onsite energy """
     def __init__(self, onsite, label):

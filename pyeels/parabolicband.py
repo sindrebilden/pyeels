@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import spglib as spg
 import pythtb as tb
 import numpy as np
-
+import logging
+_logger = logging.getLogger(__name__)
 
 class ParabolicBand:
     """ Parabolic band class constructed for simple simulations """
