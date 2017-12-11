@@ -240,7 +240,15 @@ class EELS:
         for i, initial in enumerate(energybands):
             for f, final in enumerate(energybands[(i+1):]):
                 f += i+1
-                transitions.append((i,f, initial, final))
+
+                # Check if bands lay below or above fermi distribution interval. 
+                # Interval is estimated to temperature/500, this corresponds to approx. 10th digit accuracy
+                if temperature != 0:
+                    if initial.energy_min() < fermienergy-temperature/500 and final.energy_max() > fermienergy+temperature/500:
+                        transitions.append((i,f, initial, final))
+                else:
+                    if initial.energy_min() < fermienergy and final.energy_max() > fermienergy:
+                        transitions.append((i,f, initial, final))
 
         if not max_cpu:
             max_cpu = cpu_count()

@@ -80,7 +80,7 @@ class TightBinding:
             self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, k_list=self._k_list, energies=band, waves=waves[i]))
 
     
-    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, ax=None):
+    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, ax=None):
         """ Plot a representation of the band structure
         
         :type  ylim: tuple, list
@@ -100,7 +100,7 @@ class TightBinding:
         # call function k_path to construct the actual path
         (k_vec,k_dist,k_node)=self.model.k_path(path,301,report=False)
 
-        evals =self.model.solve_all(k_vec)
+        evals = self.model.solve_all(k_vec)
         
         fig = None
         if not ax:
@@ -124,7 +124,7 @@ class TightBinding:
                     ax.axvline(x=k_node[n],linewidth=0.5, color='k')
     
         for band in evals[bands[0]:bands[1]]:
-            ax.plot(k_dist, band, color=color)
+            ax.plot(k_dist, band, color=color, linestyle=linestyle, marker=marker)
 
         if not fig:
             return ax

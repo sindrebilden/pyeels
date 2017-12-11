@@ -288,7 +288,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
             for (int initial_band = 0; initial_band < nBands-1; initial_band++){
                 initial_energy = (double *) PyArray_GETPTR2(energy_bands, initial_k, initial_band);
                 fermiValueI = fermiDirac(*initial_energy,fermi_energy,temperature);
-                if (fermiValueI < 1e-7) continue; //Speeds up calculation
+                if (fermiValueI < 1e-10) continue; //Speeds up calculation
  
             
                 for (int final_band = initial_band; final_band < nBands; final_band++){
@@ -297,7 +297,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 
                     fermiValue = fermiValueI * (1.0-fermiDirac(*final_energy, fermi_energy, temperature));
 
-                    if (fermiValue < 1e-7) continue; //Speeds up calculation
+                    if (fermiValue < 1e-10) continue; //Speeds up calculation
 
 
                     energyTransfer = *final_energy-*initial_energy;
