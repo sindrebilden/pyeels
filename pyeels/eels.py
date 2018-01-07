@@ -224,6 +224,109 @@ class EELS:
         :returns: An individual hyperspy spectrum or list of spectra, see :param: compact for info
         """
 
+        if not compact:
+            raise NotImplementedError("EELS for individual bands are not implemented.")
+
+        dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=True)
+
+        q_squared = calculate_momentum_squared(
+                self.crystal.brillouinzone.mesh,
+                self.crystal.brillouinzone.lattice,
+                self.energyBins
+                )
+
+        q_squared[q_squared[:] == 0] = np.nan
+
+        if compact:
+            signal_total = np.nan_to_num(dielectrics/q_squared)
+            return self._create_signal(signal_total, energyBins)
+        """
+        else:
+            original_title = self.title
+            for i, dielectric in enumerate(dielectrics):
+                self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
+                dielectrics[i] = self._create_signal(np.nan_to_num(dielectric/q_squared), energyBins)
+            self.title = original_title
+
+            return signals
+            """
+
+    def calculate_dielectric_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+        """ Calculate the momentum dependent dielectric function of the system, using multiple processes
+        
+        :type  energyBins: ndarray
+        :param energyBins: The binning range 
+        
+        :type  bands: tuple
+        :param bands: Tuple of start index and end index of the bands included from the band structure
+
+        :type  fermienergy: float
+        :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
+        
+        :type  temperature: float
+        :param temperature: a spesific temperature in Kelvin, if not defined the standard temperature is used
+
+        :type  max_cpu: int
+        :param max_cpu: The user defined maximum allowed number of CPU-cores, if not, the hardware limit is used. 
+
+        :type  compact: bool
+        :param compact: If set True, all transitions are added to one array. If False a list of arrays is returned with transitions from and to individual bands. 
+        
+        :returns: An individual numpy ndarray or list of arrays, see :param: compact for info
+        """
+
+
+        polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
+
+        q_squared = calculate_momentum_squared(
+                self.crystal.brillouinzone.mesh,
+                self.crystal.brillouinzone.lattice,
+                self.energyBins
+                )
+
+        q_squared[q_squared[:] == 0] = np.nan
+
+        if compact:
+            dielectric = np.nan_to_num((polarizations + polarizations**2/q_squared)/q_squared)
+            return dielectric
+        else:
+            raise NotImplementedError("Approximative dielectric function for indidual bands are not implemented.")
+            """
+            polarization_compact = polarizations[0]
+            for polarization in polarizations[1:]:
+                polarization_compact += polarization
+
+            original_title = self.title
+            for i, polarization in enumerate(polarizations):
+                self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
+                signals[i] = self._create_signal(np.nan_to_num(signal/q_squared), energyBins)
+            self.title = original_title
+
+            return signals
+            """
+    def calculate_polarization_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+        """ Calculate the momentum dependent polarization matrix of the system, using multiple processes
+        
+        :type  energyBins: ndarray
+        :param energyBins: The binning range 
+        
+        :type  bands: tuple
+        :param bands: Tuple of start index and end index of the bands included from the band structure
+
+        :type  fermienergy: float
+        :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
+        
+        :type  temperature: float
+        :param temperature: a spesific temperature in Kelvin, if not defined the standard temperature is used
+
+        :type  max_cpu: int
+        :param max_cpu: The user defined maximum allowed number of CPU-cores, if not, the hardware limit is used. 
+
+        :type  compact: bool
+        :param compact: If set True, all transitions are added to one array. If False a list of arrays is returned with transitions from and to individual bands. 
+        
+        :returns: An individual numpy ndarray or list of arrays, see :param: compact for info
+        """
 
         if temperature:
             self.temperature = temperature
@@ -231,7 +334,6 @@ class EELS:
             self.fermienergy = fermienergy
 
         self.energyBins = energyBins
-        
 
         energybands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
 
@@ -257,6 +359,8 @@ class EELS:
 
         p = Pool(min(len(transitions),max_cpu), self._init_worker)
         r = p.map_async(self._calculate, transitions)
+
+        # Passing keyboard interuption to the c-extended processes pool
         try:
             r.wait()
         except KeyboardInterrupt:
@@ -269,25 +373,15 @@ class EELS:
             p.join()
             signals = r.get()
 
+            if compact:
+                signal_total = signals[0]
+                for signal in signals[1:]:
+                    signal_total += signal
+                return signal_total
+            else:
+                return signals
 
-        q_squared = calculate_momentum_squared(
-                self.crystal.brillouinzone.mesh,
-                self.crystal.brillouinzone.lattice,
-                self.energyBins
-                )
-        q_squared[q_squared[:]==0] = np.nan
 
-        if compact:
-            signal_total = np.nan_to_num(self.compress_signals(signals)/q_squared)
-            return self._create_signal(signal_total, energyBins)
-        else:
-            original_title = self.title
-            for i, signal in enumerate(signals):
-                self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
-                signals[i] = self._create_signal(np.nan_to_num(signal/q_squared), energyBins)
-            self.title = original_title
-
-            return signals
                 
     def _calculate(self, transition):
             i, f, initial_band, final_band = transition
