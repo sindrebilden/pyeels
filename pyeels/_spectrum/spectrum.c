@@ -61,12 +61,22 @@ calculate_momentum_squared (PyObject *dummy, PyObject *args)
         for (int j = 0; j < dims[2]; j++){  
             for (int k = 0; k < dims[3]; k++){
                 temp = 0.0;
+                //printf("%i, %i, %i \n", (i-(dims[1]-1)/2), (j-(dims[2]-1)/2), (k-(dims[3]-1)/2));
+                
+                // Loop through x,y,z and 
                 for (int q = 0; q < 3; q++) {
-                    sub_temp = ((i-dims[1]/2)*dQ[0]* *(double*) PyArray_GETPTR2(brillouinZone, 0, q) + (j-dims[2]/2)*dQ[1]* *(double*) PyArray_GETPTR2(brillouinZone, 1, q) + (k-dims[3]/2)*dQ[2]* *(double*) PyArray_GETPTR2(brillouinZone, 2, q));
-                    temp += sub_temp*sub_temp;
+                    sub_temp  = (i-(dims[1]-1)/2)*dQ[0]* *(double*) PyArray_GETPTR2(brillouinZone, 0, q); //a
+                    sub_temp += (j-(dims[2]-1)/2)*dQ[1]* *(double*) PyArray_GETPTR2(brillouinZone, 1, q); //b
+                    sub_temp += (k-(dims[3]-1)/2)*dQ[2]* *(double*) PyArray_GETPTR2(brillouinZone, 2, q); //c 
+                    
+//                    printf("%f, ",sub_temp);
+
+                    temp += sub_temp*sub_temp; //x^2
                 }
+                printf("\n");
                 for (int e = 0; e < dims[0]; e++){  
                     EELS[e][i][j][k] = temp;
+
                 } 
             } 
         }
@@ -120,7 +130,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
 
     int nBands = PyArray_SHAPE(energy_bands)[1];
     int nWaves = PyArray_SHAPE(wave_real)[2];
-    int k_size = PyList_Size(k_grid);
+    int k_size = PyArray_SHAPE(k_grid)[0];
 
     int EELS_E_dim = 0;
     double dE;
