@@ -4,7 +4,7 @@ _logger = logging.getLogger(__name__)
 
 class Band:
     
-    def __init__(self, k_grid, k_list, energies, waves):
+    def __init__(self, k_grid, energies, waves):
         """ Create instance of Band with a k-grid, energies and waves
         
         :type  k_grid: ndarray
@@ -18,7 +18,6 @@ class Band:
         """
         
         self.k_grid = k_grid
-        self.k_list = k_list
         if energies.shape[0] != k_grid.shape[0]:
             _logger.warning("Shape of energy ({}) does not match the length of the k-grid ({})".format(energies.shape,k_grid.shape[0]))
         else:

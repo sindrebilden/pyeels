@@ -172,7 +172,7 @@ class EELS:
         data = calculate_spectrum(
                 self.crystal.brillouinzone.mesh,
                 self.crystal.brillouinzone.lattice, 
-                initial_band.k_list,
+                initial_band.k_grid,
                 np.stack(energyBands, axis=1),  
                 np.stack(waveStates, axis=1).real, 
                 np.stack(waveStates, axis=1).imag,
@@ -183,7 +183,7 @@ class EELS:
 
         return self._create_signal(data, energyBins)
         
-    def compress_singnals(self, singnals):
+    def compress_signals(self, signals):
         """ Takes a list of spectra and adds them togheter to one spectrum
         
         :type  signals: list
@@ -275,10 +275,10 @@ class EELS:
                 self.crystal.brillouinzone.lattice,
                 self.energyBins
                 )
-        q_squared[q_squared[:]==0] == np.nan
+        q_squared[q_squared[:]==0] = np.nan
 
         if compact:
-            signal_total = np.nan_to_num(self.compress_spectra(signals)/q_squared)
+            signal_total = np.nan_to_num(self.compress_signals(signals)/q_squared)
             return self._create_signal(signal_total, energyBins)
         else:
             original_title = self.title
@@ -298,7 +298,7 @@ class EELS:
             return calculate_spectrum(
                 self.crystal.brillouinzone.mesh,
                 self.crystal.brillouinzone.lattice, 
-                initial_band.k_list,
+                initial_band.k_grid,
                 np.stack(energyBands, axis=1),  
                 np.stack(waveStates, axis=1).real, 
                 np.stack(waveStates, axis=1).imag,

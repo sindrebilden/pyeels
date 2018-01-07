@@ -65,7 +65,7 @@ class ParabolicBand:
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
         energies, waves = self._calculate_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
-        self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, k_list=self._k_list, energies=energies, waves=waves))
+        self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=energies, waves=waves))
         
 
         
@@ -87,13 +87,8 @@ class ParabolicBand:
             
             if np.any(mesh==np.array([1, 1, 1])):
                 mesh+= (mesh==np.array([1, 1, 1]))*1
-            k_grid = grid[np.unique(mapping)]/(mesh-1)
 
-            k_list = []
-            for i, map_id in enumerate(mapping[np.unique(mapping)]):
-                k_list.append((grid[mapping==map_id]/(mesh-1)).tolist()) #np.dot(,self.cell.brillouinzone)
-            self._k_grid = k_grid
-            self._k_list = k_list
+            self._k_grid = grid/(mesh-1)
         else:
             _logger.warning("Unknown type {} for mesh, try ndarray.".format(type(mesh)))
         

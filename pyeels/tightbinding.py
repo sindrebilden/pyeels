@@ -50,13 +50,8 @@ class TightBinding:
             
             if np.any(mesh==np.array([1, 1, 1])):
                 mesh+= (mesh==np.array([1, 1, 1]))*1
-            k_grid = grid[np.unique(mapping)]/(mesh-1)
 
-            k_list = []
-            for i, map_id in enumerate(mapping[np.unique(mapping)]):
-                k_list.append((grid[mapping==map_id]/(mesh-1)).tolist()) #np.dot(,self.cell.brillouinzone)
-            self._k_grid = k_grid
-            self._k_list = k_list
+            self._k_grid = grid/(mesh-1)
         else:
             _logger.warning("Unknown type {} for mesh, try ndarray.".format(type(mesh)))
         
@@ -81,7 +76,7 @@ class TightBinding:
             waves = np.stack([np.zeros(energies.shape,dtype=np.complex128),np.ones(energies.shape,dtype=np.complex128)], axis=2)
         
         for i, band in enumerate(energies):
-            self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, k_list=self._k_list, energies=band, waves=waves[i]))
+            self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=band, waves=waves[i]))
 
     
     def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, ax=None):
