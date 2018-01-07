@@ -227,36 +227,31 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
             initial_k_list = PyList_GetItem(k_grid,initial_k);
             final_k_list = PyList_GetItem(k_grid,final_k);
 
-            for (int initial_k_index = 0; initial_k_index < PyList_Size(initial_k_list); initial_k_index++){
-                initial_k_vec = PyList_GetItem(initial_k_list, initial_k_index);
-                for (int  final_k_index = 0; final_k_index < PyList_Size(final_k_list); final_k_index++){
-                    final_k_vec = PyList_GetItem(final_k_list, final_k_index);
-                    
-                    if(PyErr_CheckSignals()) goto aborted;
+                               
+            if(PyErr_CheckSignals()) goto aborted;
 
-                    for(int q = 0; q < 3; q++){
-                        momTrans[q] =  (PyFloat_AsDouble(PyList_GetItem(final_k_vec,q))-PyFloat_AsDouble(PyList_GetItem(initial_k_vec,q)));
-                        if(momTrans[q]>0.5){
-                            momTrans[q] = momTrans[q]-1.0;
-                        } 
-                        if(momTrans[q]<=-0.5){
-                            momTrans[q] = momTrans[q]+1.0;
-                        }
-                        qIndex[q] = (momTrans[q]+0.5)/dQ[q];
-                    }
-
-                    if(energyIndex < EELS_E_dim){
-                        if(qIndex[0] < dims[1] && qIndex[0] >= 0){
-                            if(qIndex[1] < dims[2] && qIndex[1] >= 0){
-                                if(qIndex[2] < dims[3] && qIndex[2] >= 0){
-                                    EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue);
-                                    iterations ++;
-                                }
-                            }
-                        }
-                    }        
+            for(int q = 0; q < 3; q++){
+                momTrans[q] =  (*(double *) PyArray_GETPTR2(k_grid, final_k, q)-*(double *) PyArray_GETPTR2(k_grid, initial_k, q));
+                if(momTrans[q]>0.5){
+                    momTrans[q] = momTrans[q]-1.0;
+                } 
+                if(momTrans[q]<=-0.5){
+                    momTrans[q] = momTrans[q]+1.0;
                 }
+                qIndex[q] = (momTrans[q]+0.5)/dQ[q];
             }
+
+            if(energyIndex < EELS_E_dim){
+                if(qIndex[0] < dims[1] && qIndex[0] >= 0){
+                    if(qIndex[1] < dims[2] && qIndex[1] >= 0){
+                        if(qIndex[2] < dims[3] && qIndex[2] >= 0){
+                            EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue);
+                            iterations ++;
+                            //printf("%i\n", iterations);
+                        }
+                    }
+                }
+            }        
         }
     }
 
@@ -276,6 +271,7 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     }
 
     printf("Process ended with %i sucessful transitions..\n", iterations);
+    PyErr_Clear();
     return Py_BuildValue("O", ArgsArray);
 
     aborted:
