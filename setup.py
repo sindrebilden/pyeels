@@ -6,7 +6,7 @@ import numpy as np
 
 ext_modules = [ Extension('pyeels.cpyeels', sources = ['./pyeels/_spectrum/spectrum.c']) ]
 
-readme = open('README.rst','r')
+readme = open('README.md','r')
 
 setup(
       name = 'PyEELS',
