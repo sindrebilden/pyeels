@@ -407,7 +407,115 @@ class EELS:
     def _init_worker(self):
         sign.signal(sign.SIGINT, sign.SIG_IGN)
         
+
+    # Signal handeling
+
+    def gauss(self, sigma, eRange):
+        """ Creates a gauss to smear data
+        :type  sigma: float
+        :param sigma: the sigmal value of the gauss
+
+        :type  eRange: ndarray
+        :param eRange: an array of energy values 
+
+        :returns: an array with a gaussian in energy space
+        """
+        dE = eRange[1]-eRange[0]
+        gx = np.arange(-3*sigma,3*sigma, dE)
+        gaussian = np.exp(-0.5*(gx/sigma)**2)
+        gaussian = gaussian/np.sum(gaussian)
+        
+        gauss =np.zeros((1,1,1,len(gaussian)))
+        gauss[0,0,0,:] = gaussian
+        return gauss
+
+    def smear(self, s, sigma):
+        """ Smear the signal with a gaussian smearing
+        :type  s: hyperspy signal
+        :param s: the signal to be smeared
+
+        :type  sigma: float  
+        :param sigma: the sigma value of the gauss
+        
+        :returns: the smeared signal
+        """
+        hist = s.data
+        scale = s.axes_manager['Energy'].scale
+        offset = s.axes_manager['Energy'].offset
+        size = s.axes_manager['Energy'].size
+
+        eRange = np.linspace(offset, offset+(size-1)*scale, size)
+
+        gaussian = gauss(sigma, eRange)
+        
+        crop_front = len(gaussian[0,0,0,:])//2
+        if len(gaussian[0,0,0,:])%2 == 1:
+            crop_end = crop_front
+        else:
+            crop_end = crop_front-1
+            
+        hist = convolve(hist, gaussian)
+        
+        s_smooth = copy.deepcopy(s)
+        
+        s_smooth.data = hist[:,:,:,crop_front:-crop_end]
+        s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " smoothed"
+        s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " smoothed"
+        return s_smooth
+
+
+
+    def plotSignals(self, signals, colors=None, linestyles=None, plotstyle=None, fill=False, linewidth=None):
+        
+        s = signals[0]
+        x_label = "{} [{}]".format(s.axes_manager.signal_axes[0].name,s.axes_manager.signal_axes[0].units)
+        
+        fig, ax = plt.subplots()
+        ax.set_xlabel(x_label)
+        ax.set_ylabel("Intensity [arb.]")
+        
+        if not linestyles:
+            linestyles = []
+            for i in range(len(signals)):
+                linestyles.append('-')
+        elif isinstance(linestyles,str):
+            linestyles = [linestyles]
+
+        if (len(linestyles) < len(signals)):
+            for i in range(len(signals)-len(linestyles)):
+                linestyles.append(linestyles[i])
+
+        # REWRITE TO COLORS
+        if not colors:
+            standard_colors = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
+            colors = []
+            for i in range(len(signals)):
+                colors.append(standard_colors[2*i])
+        elif isinstance(colors,str):
+            colors = [colors]
+
+        if (len(colors) < len(colors)):
+            for i in range(len(signals)-len(colors)):
+                colors.append(colors[i])
+
+        if not linewidth:
+            linewidth = 2;
+
+        for i,s in enumerate(signals):
+            x = s.axes_manager.signal_axes[0].axis
+            y = s.sum().data
+            label = s.metadata['General']['title']
+            ax.plot(x,y,linestyles[i],color=colors[i], linewidth=linewidth, label=label)
+            if fill:
+                ax.fill_between(x,0,y,facecolor=colors[i],alpha=0.4)
+
+                
+        
+
+
     def __repr__(self):
         string = "EELS Signal Calculator:\n\nSignal name:\n\t{}\nAuthors:\n\t{}\nTitle:\n\t{}\nNotes:\n\t{}\n\n".format(self.name, self.authors, self.title, self.notes)
         string += "Temperature: {} K\tFermiEnergy: {} eV\n".format(self.temperature, self.fermienergy)
         return string
+
+    
