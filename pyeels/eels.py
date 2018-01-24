@@ -237,9 +237,12 @@ class EELS:
 
         q_squared[q_squared[:] == 0] = np.nan
 
-        if compact:
-            signal_total = np.nan_to_num(dielectrics/q_squared)
-            return self._create_signal(signal_total, energyBins)
+        if (dielectrics.shape == q_squared.shape):
+            if compact:
+                signal_total = np.nan_to_num(dielectrics/q_squared)
+                return self._create_signal(signal_total, energyBins)
+        else:
+            raise ValueError("The shapes of dielectric function and q squared mismatch, try restart kernel.")
         """
         else:
             original_title = self.title
@@ -287,10 +290,10 @@ class EELS:
         q_squared[q_squared[:] == 0] = np.nan
 
         if compact:
-            dielectric = np.nan_to_num((polarizations + polarizations**2/q_squared)/q_squared)
+            dielectric = np.nan_to_num(polarizations/q_squared) #(polarizations + polarizations**2/q_squared)/q_squared  ###### SHOULD I TREAT IMAGINARY PARTS?
             return dielectric
         else:
-            raise NotImplementedError("Approximative dielectric function for indidual bands are not implemented.")
+            raise NotImplementedError("Approximative dielectric function for indidual bands is not implemented.")
             """
             polarization_compact = polarizations[0]
             for polarization in polarizations[1:]:
