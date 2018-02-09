@@ -12,7 +12,7 @@ class BrillouinZone:
         """
         self._set_reciprocal_space(crystal)
         
-        self.bands = []     
+        self.bands = []
 
     def _set_reciprocal_space(self, crystal):
         """ Constructs the reciprocal space from a crystal objec

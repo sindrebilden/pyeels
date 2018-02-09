@@ -38,7 +38,27 @@ class Band:
         :returns: maximum energy
         """
         return np.max(self.energies)
+    
+    def density_of_states(self, energybins):
+        """ Get the density of states (DOS) in the band 
+        :type  energybins: ndarray/int
+        :param energybins: the energybins of the DOS/the number of bins
+        """
+
+        if type(energybins) == np.ndarray:
+            emin = np.min(energybins)
+            emax = np.max(energybins)
+            erange = energybins.shape[0]
+
+        elif type(energybins) == int:
+            emin = self.energy_min()
+            emax = self.energy_max()            
+            erange = energybins.shape[0]
         
+        return np.histogram(a=self.energies, bins=erange, range=(emin, emax))[0]
+
+
+
     def __repr__(self):
         """ Representing band object """
         return "Band object, E_min: {}, E_max: {}".format(self.energy_min().round(2),self.energy_max().round(2))

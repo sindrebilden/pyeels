@@ -78,6 +78,7 @@ class TightBinding:
         for i, band in enumerate(energies):
             self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=band, waves=waves[i]))
 
+
     
     def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, ax=None):
         """ Plot a representation of the band structure
@@ -130,6 +131,21 @@ class TightBinding:
         else:
             ax.set_ylim(ylim)
             return ax, fig
+
+    def density_of_states(self, energybins):
+        """ calculates the density of states (DOS) in the material
+        :type  energybins: ndarray
+        :param energybins: numpy array of the energy bins for DOS
+        """
+
+        DOS = np.zeros(energybins.shape)
+
+        if len(self._crystal.brillouinzone.bands) > 0:
+            for band in self._crystal.brillouinzone.bands:
+                DOS += band.density_of_states(energybins)
+            return DOS
+        else:
+            raise ValueError("No bands found in crystal, run calculate() to calculate bands.")
 
     def __repr__(self):
         return "Parabolic band model for: \n \n {} \n".format(self._crystal)

@@ -2,6 +2,8 @@ import hyperspy.api as hs
 from pyeels.cpyeels import calculate_spectrum, calculate_momentum_squared
 import numpy as np
 from multiprocessing import Pool, cpu_count
+from scipy.signal import convolve as convolve
+import copy
 import os
 import signal as sign
 import time
@@ -32,7 +34,7 @@ class EELS:
             self.zone = zone
             
         if not bins:
-            self.bins = np.round(self.crystal.brillouinzone.mesh).astype(int) #/1.3 is a bad temporarly solution
+            self.bins = np.round(self.crystal.brillouinzone.mesh).astype(int)
         else:
             self.bins = bins
         
@@ -198,6 +200,25 @@ class EELS:
 
         return signal_total
 
+    def joint_density_of_states(self, bands=(None,None), fermienergy=None, compact=True):
+        """ Calculate the joint density of states for direct transitions
+            
+        :type  bands: tuple
+        :param bands: Tuple of start index and end index of the bands included from the band structure
+
+        :type  fermienergy: float
+        :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
+        """
+
+        DOS = np.zeros(self.brillouinzone.bands[0].shape)
+
+        for initial_band in self.brillouinzone.bands:
+            for final_band in self.brillouinzone.bands:
+                
+                if initial_band != final_band:
+                    DOS += final_band.energies-initial_band.energies
+                    
+        return DOS
 
 
     def calculate_eels_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
@@ -229,30 +250,51 @@ class EELS:
 
         dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=True)
 
+        weights = signal_weights()
+
+        if (dielectrics.shape == weights.shape):
+            if compact:
+                signal_total = np.nan_to_num(dielectrics*weights)
+                return self._create_signal(signal_total, energyBins)
+            else:
+                # Find a way to calculate transitions again o.o
+                original_title = self.title
+                for i, dielectric in enumerate(dielectrics):
+                    self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
+                    dielectrics[i] = self._create_signal(np.nan_to_num(dielectric/q_squared), energyBins)
+                self.title = original_title
+
+                return signals
+
+        else:
+            raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
+       
+    def signal_weights(self):
+        """ Calculates the signal weights (q^2+omega^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
+        
+        :returns: singal weights in energy and momentum space 
+        """
+
         q_squared = calculate_momentum_squared(
-                self.crystal.brillouinzone.mesh,
-                self.crystal.brillouinzone.lattice,
-                self.energyBins
-                )
+        self.crystal.brillouinzone.mesh,
+        self.crystal.brillouinzone.lattice,
+        self.energyBins
+        )
+
+        e = self.energyBins**2
+
+        for i in range(0,q_squared.shape[0]):
+            for j in range(0,q_squared.shape[1]):
+                for k in range(0,q_squared.shape[2]):
+                    q_squared[i,j,k] += e
 
         q_squared[q_squared[:] == 0] = np.nan
 
-        if (dielectrics.shape == q_squared.shape):
-            if compact:
-                signal_total = np.nan_to_num(dielectrics/q_squared)
-                return self._create_signal(signal_total, energyBins)
-        else:
-            raise ValueError("The shapes of dielectric function and q squared mismatch, try restart kernel.")
-        """
-        else:
-            original_title = self.title
-            for i, dielectric in enumerate(dielectrics):
-                self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
-                dielectrics[i] = self._create_signal(np.nan_to_num(dielectric/q_squared), energyBins)
-            self.title = original_title
+        weights = q_squared**-1
 
-            return signals
-            """
+        weights[np.isnan(weights)] = 0
+
+        return weights
 
     def calculate_dielectric_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent dielectric function of the system, using multiple processes
@@ -281,32 +323,22 @@ class EELS:
 
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
-        q_squared = calculate_momentum_squared(
-                self.crystal.brillouinzone.mesh,
-                self.crystal.brillouinzone.lattice,
-                self.energyBins
-                )
+        if polarizations:
+            q_squared = calculate_momentum_squared(
+                    self.crystal.brillouinzone.mesh,
+                    self.crystal.brillouinzone.lattice,
+                    self.energyBins
+                    )
 
-        q_squared[q_squared[:] == 0] = np.nan
+            q_squared[q_squared[:] == 0] = np.nan
 
-        if compact:
             dielectric = np.nan_to_num(polarizations/q_squared) #(polarizations + polarizations**2/q_squared)/q_squared  ###### SHOULD I TREAT IMAGINARY PARTS?
             return dielectric
+
         else:
-            raise NotImplementedError("Approximative dielectric function for indidual bands is not implemented.")
-            """
-            polarization_compact = polarizations[0]
-            for polarization in polarizations[1:]:
-                polarization_compact += polarization
+            return None
 
-            original_title = self.title
-            for i, polarization in enumerate(polarizations):
-                self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
-                signals[i] = self._create_signal(np.nan_to_num(signal/q_squared), energyBins)
-            self.title = original_title
 
-            return signals
-            """
     def calculate_polarization_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent polarization matrix of the system, using multiple processes
         
@@ -385,6 +417,8 @@ class EELS:
                 return signals
 
 
+
+
                 
     def _calculate(self, transition):
             i, f, initial_band, final_band = transition
@@ -409,8 +443,8 @@ class EELS:
         
 
     # Signal handeling
-
-    def gauss(self, sigma, eRange):
+    @classmethod
+    def _gauss(cls, sigma, eRange):
         """ Creates a gauss to smear data
         :type  sigma: float
         :param sigma: the sigmal value of the gauss
@@ -429,7 +463,8 @@ class EELS:
         gauss[0,0,0,:] = gaussian
         return gauss
 
-    def smear(self, s, sigma):
+    @classmethod
+    def smear(cls, s, sigma):
         """ Smear the signal with a gaussian smearing
         :type  s: hyperspy signal
         :param s: the signal to be smeared
@@ -446,7 +481,7 @@ class EELS:
 
         eRange = np.linspace(offset, offset+(size-1)*scale, size)
 
-        gaussian = gauss(sigma, eRange)
+        gaussian = cls._gauss(sigma, eRange)
         
         crop_front = len(gaussian[0,0,0,:])//2
         if len(gaussian[0,0,0,:])%2 == 1:
@@ -463,54 +498,78 @@ class EELS:
         s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " smoothed"
         return s_smooth
 
+    @classmethod
+    def set_ROI(cls, s, shape="circle", interactive=False):
+        """ Selects an interactive region of interst (ROI) to the signal
 
+        :type  s: hyperspy signal
+        :param s: the signal of interest
 
-    def plotSignals(self, signals, colors=None, linestyles=None, plotstyle=None, fill=False, linewidth=None):
+        :type  shape: string
+        :param shape: the description of the ROI; circle, ring, rectangle
+
+        :type  interactive: boolean
+        :param interactive: interactive if True, False if left blank
         
-        s = signals[0]
-        x_label = "{} [{}]".format(s.axes_manager.signal_axes[0].name,s.axes_manager.signal_axes[0].units)
+        :returns: hyperspy roi, hyperspy signal
+        """
+        import hyperspy.api as hs
+     
+        if s.axes_manager.navigation_dimension < 2:
+            axes = "sig"
+            x_axis = s.axes_manager[s.axes_manager.signal_indices_in_array[1]]
+            y_axis = s.axes_manager[s.axes_manager.signal_indices_in_array[0]]
+        else:
+            axes = "nav"
+            x_axis = s.axes_manager[s.axes_manager.navigation_indices_in_array[1]]
+            y_axis = s.axes_manager[s.axes_manager.navigation_indices_in_array[0]]
+
+
+        if shape == "circle":
+            x = x_axis.axis[round(x_axis.size/2)]
+            y = y_axis.axis[round(y_axis.size/2)]
+
+            r_outer = x_axis.axis[round(3*x_axis.size/4)]
         
-        fig, ax = plt.subplots()
-        ax.set_xlabel(x_label)
-        ax.set_ylabel("Intensity [arb.]")
+            sroi = hs.roi.CircleROI(x, y, r=r_outer)
+            """
+            s.plot()
+            sroi= sroi.interactive(s) 
+            ss = hs.interactive(f=sroi.sum, event=sroi.events.data_changed)
+            """
+        elif shape == "ring":
+            x = x_axis.axis[round(x_axis.size/2)]
+            y = y_axis.axis[round(y_axis.size/2)]
+
+            r_outer = x_axis.axis[round(4*x_axis.size/5)]
+            r_inner = x_axis.axis[round(3*x_axis.size/4)]
         
-        if not linestyles:
-            linestyles = []
-            for i in range(len(signals)):
-                linestyles.append('-')
-        elif isinstance(linestyles,str):
-            linestyles = [linestyles]
+            sroi = hs.roi.CircleROI(x, y, r=r_outer, r_inner=r_inner)
+            """
+            s.plot()
+            sroi= sroi.interactive(s) 
+            ss = hs.interactive(f=sroi.sum, event=sroi.events.data_changed)
+            """
+        else:
+            if not shape == "rectangle":
+                print("Did not recognize shape, using rectangle")
+            x1 = x_axis.axis[1]
+            x2 = x_axis.axis[round(x_axis.size/10)]
+            y1 = y_axis.axis[1]
+            y2 = y_axis.axis[round(y_axis.size/10)]
 
-        if (len(linestyles) < len(signals)):
-            for i in range(len(signals)-len(linestyles)):
-                linestyles.append(linestyles[i])
+            sroi = hs.roi.RectangularROI(x1, y1, x2, y2)
+            
+        if interactive:
+            s.plot()
+            roi_signal = sroi.interactive(s)
+            ss = hs.interactive(f=roi_signal.sum, event=roi_signal.events.data_changed) 
+        else:
+            roi_signal = sroi(s)
+            ss = roi_signal.sum()
+            
+        return sroi, ss
 
-        # REWRITE TO COLORS
-        if not colors:
-            standard_colors = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
-            colors = []
-            for i in range(len(signals)):
-                colors.append(standard_colors[2*i])
-        elif isinstance(colors,str):
-            colors = [colors]
-
-        if (len(colors) < len(colors)):
-            for i in range(len(signals)-len(colors)):
-                colors.append(colors[i])
-
-        if not linewidth:
-            linewidth = 2;
-
-        for i,s in enumerate(signals):
-            x = s.axes_manager.signal_axes[0].axis
-            y = s.sum().data
-            label = s.metadata['General']['title']
-            ax.plot(x,y,linestyles[i],color=colors[i], linewidth=linewidth, label=label)
-            if fill:
-                ax.fill_between(x,0,y,facecolor=colors[i],alpha=0.4)
-
-                
-        
 
 
     def __repr__(self):
