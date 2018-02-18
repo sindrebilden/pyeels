@@ -96,6 +96,18 @@ calculate_momentum_squared (PyObject *dummy, PyObject *args)
         }
     }
 
+    // Free memory from c-object
+    for (int e = 0; e < dims[0]; e++){  
+        for (int i = 0; i < dims[1]; i++){  
+            for (int j = 0; j < dims[2]; j++){  
+                free(EELS[e][i][j]);
+            } 
+            free(EELS[e][i]);
+        }
+        free(EELS[e]);
+    }
+    free(EELS);
+
     printf("Process calculated momentum\n");
     return Py_BuildValue("O", ArgsArray);
 
