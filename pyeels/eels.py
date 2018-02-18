@@ -106,7 +106,7 @@ class EELS:
         metadata['Sample']['system']['bands'] = {}
         metadata['Sample']['system']['bands']['count'] = len(self.crystal.brillouinzone.bands)
         for i, band in enumerate(self.crystal.brillouinzone.bands):
-            metadata['Sample']['system']['bands']["band {}".format(i)] = self.crystal.brillouinzone.bands[i]
+            metadata['Sample']['system']['bands']["band {}".format(i)] = self.crystal.brillouinzone.bands[i].__repr__()
                 
         metadata['Sample']['description'] = None
 
@@ -242,33 +242,36 @@ class EELS:
         :type  compact: bool
         :param compact: If set True, all transitions are added to one spectrum. If False a list of spectra is returned with transitions from and to individual bands. 
         
-        :returns: An individual hyperspy spectrum or list of spectra, see :param: compact for info
+        :returns: An individual hyperspy spectrum or list of spectra, see :param: compact for info, returns None if terminated
         """
 
-        if not compact:
-            raise NotImplementedError("EELS for individual bands are not implemented.")
+#        if not compact:
+#            raise NotImplementedError("EELS for individual bands are not implemented.")
 
-        dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=True)
+        dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
 
-        weights = signal_weights()
+        if isinstance(dielectrics, np.ndarray):            
+            weights = self.signal_weights()
 
-        if (dielectrics.shape == weights.shape):
-            if compact:
-                signal_total = np.nan_to_num(dielectrics*weights)
-                return self._create_signal(signal_total, energyBins)
+            if (dielectrics.shape == weights.shape):
+                if compact:
+                    signal_total = np.nan_to_num(dielectrics*weights)
+                    return self._create_signal(signal_total, energyBins)
+                else:
+                    # Find a way to calculate transitions again o.o
+                    original_title = self.title
+                    for i, dielectric in enumerate(dielectrics):
+                        self.title = original_title+" from band {} to {}".format(self._transitions[i][0],self._transitions[i][1])
+                        dielectrics[i] = self._create_signal(np.nan_to_num(dielectric/q_squared), energyBins)
+                    self.title = original_title
+
+                    return signals
+
             else:
-                # Find a way to calculate transitions again o.o
-                original_title = self.title
-                for i, dielectric in enumerate(dielectrics):
-                    self.title = original_title+" from band {} to {}".format(transitions[i][0],transitions[i][1])
-                    dielectrics[i] = self._create_signal(np.nan_to_num(dielectric/q_squared), energyBins)
-                self.title = original_title
-
-                return signals
-
+                raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
         else:
-            raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
-       
+            return None
+
     def signal_weights(self):
         """ Calculates the signal weights (q^2+omega^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
         
@@ -283,10 +286,10 @@ class EELS:
 
         e = self.energyBins**2
 
-        for i in range(0,q_squared.shape[0]):
-            for j in range(0,q_squared.shape[1]):
-                for k in range(0,q_squared.shape[2]):
-                    q_squared[i,j,k] += e
+        for i in range(0,q_squared.shape[1]):
+            for j in range(0,q_squared.shape[2]):
+                for k in range(0,q_squared.shape[3]):
+                    q_squared[:,i,j,k] += e
 
         q_squared[q_squared[:] == 0] = np.nan
 
@@ -323,7 +326,7 @@ class EELS:
 
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
-        if polarizations:
+        if isinstance(polarizations, np.ndarray):
             q_squared = calculate_momentum_squared(
                     self.crystal.brillouinzone.mesh,
                     self.crystal.brillouinzone.lattice,
@@ -372,7 +375,7 @@ class EELS:
 
         energybands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
 
-        transitions = []
+        self._transitions = []
         for i, initial in enumerate(energybands):
             for f, final in enumerate(energybands[(i+1):]):
                 f += i+1
@@ -381,10 +384,10 @@ class EELS:
                 # Interval is estimated to temperature/500, this corresponds to approx. 10th digit accuracy
                 if temperature != 0:
                     if initial.energy_min() < fermienergy-temperature/500 and final.energy_max() > fermienergy+temperature/500:
-                        transitions.append((i,f, initial, final))
+                        self._transitions.append((i,f, initial, final))
                 else:
                     if initial.energy_min() < fermienergy and final.energy_max() > fermienergy:
-                        transitions.append((i,f, initial, final))
+                        self._transitions.append((i,f, initial, final))
 
         if not max_cpu:
             max_cpu = cpu_count()
@@ -392,8 +395,8 @@ class EELS:
         if max_cpu > cpu_count():
             max_cpu = cpu_count()
 
-        p = Pool(min(len(transitions),max_cpu), self._init_worker)
-        r = p.map_async(self._calculate, transitions)
+        p = Pool(min(len(self._transitions),max_cpu), self._init_worker)
+        r = p.map_async(self._calculate, self._transitions)
 
         # Passing keyboard interuption to the c-extended processes pool
         try:
@@ -421,22 +424,32 @@ class EELS:
 
                 
     def _calculate(self, transition):
-            i, f, initial_band, final_band = transition
-            
-            energyBands = [initial_band.energies, final_band.energies]
-            waveStates =  [initial_band.waves, final_band.waves]
+        """ Calculates the irreducible polarization matrix by embeded c-code. 
+        The result is weighted by the number of k-points in the Brillouin Zone.
 
-            return calculate_spectrum(
-                self.crystal.brillouinzone.mesh,
-                self.crystal.brillouinzone.lattice, 
-                initial_band.k_grid,
-                np.stack(energyBands, axis=1),  
-                np.stack(waveStates, axis=1).real, 
-                np.stack(waveStates, axis=1).imag,
-                self.energyBins, 
-                self.fermienergy, 
-                self.temperature
-            )       
+        :type  transition: tuple
+        :param transition: containing index of initial and final band and the respective band objects
+
+        :returns: a weighted irreducible polarization matrix as a numpy ndarray
+        """
+        i, f, initial_band, final_band = transition
+        
+        energyBands = [initial_band.energies, final_band.energies]
+        waveStates =  [initial_band.waves, final_band.waves]
+
+        k_weights = self.crystal.brillouinzone.mesh[0]*self.crystal.brillouinzone.mesh[1]*self.crystal.brillouinzone.mesh[2];      
+
+        return calculate_spectrum(
+            self.crystal.brillouinzone.mesh,
+            self.crystal.brillouinzone.lattice, 
+            initial_band.k_grid,
+            np.stack(energyBands, axis=1),  
+            np.stack(waveStates, axis=1).real, 
+            np.stack(waveStates, axis=1).imag,
+            self.energyBins, 
+            self.fermienergy, 
+            self.temperature
+        )/k_weights**2
 
     def _init_worker(self):
         sign.signal(sign.SIGINT, sign.SIG_IGN)
