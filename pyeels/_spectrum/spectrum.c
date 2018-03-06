@@ -1,5 +1,6 @@
 #include <Python.h>
-#include "/usr/local/lib/python2.7/dist-packages/numpy/core/include/numpy/arrayobject.h"
+
+#include "numpy/core/include/numpy/arrayobject.h"
 
 double fermiDirac(double energy, double fermiLevel, double temperature){
     return 1.0/(exp((energy-fermiLevel)/temperature)+1.0);
