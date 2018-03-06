@@ -31,9 +31,28 @@ class ParabolicBand:
         self.set_grid()
         
         self._model = tb.tb_model(3,3,self._crystal.lattice, self._orbital_positons)
-        
+    
     def _calculate_parabolic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,))):
-        """ Calculate energy of parabolig band in k-space
+        """ Calculate energy of parabolic band in k-space without any boundary conditions
+        
+        :type  energy_offset: float
+        :param energy_offset: the energy min/max of the band
+        
+        :type  effective_mass: ndarray
+        :param effective_mass: the effective mass along each direction of the cell [m_a, m_b, m_c]
+        
+        :type  k_center: ndarray
+        :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
+    
+        :returns: energy band as an array
+        """
+
+
+        return energy_offset+(self._HBAR_C**2/(2*self._M_E))*((self._k_grid[:,0]-k_center[0])**2/effective_mass[0]\
+                            +(self._k_grid[:,1]-k_center[1])**2/effective_mass[1]+(self._k_grid[:,2]-k_center[2])**2/effective_mass[2])
+
+    def _calculate_parabolic_periodic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,))):
+        """ Calculate energy of parabolic band in k-space with periodic boundary conditions in the Brillouin Zone
         
         :type  energy_offset: float
         :param energy_offset: the energy min/max of the band
@@ -44,10 +63,22 @@ class ParabolicBand:
         :type  k_center: ndarray
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
-        
-        energies = energy_offset+(self._HBAR_C**2/(2*self._M_E))*((self._k_grid[:,0]-k_center[0])**2/effective_mass[0]\
-                    +(self._k_grid[:,1]-k_center[1])**2/effective_mass[1]+(self._k_grid[:,2]-k_center[2])**2/effective_mass[2])
 
+        energies = self._calculate_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
+
+        
+
+        if np.any(k_center != 0):
+            k_shifts = np.eye(3)
+            k_center_initial = k_center
+
+            for dim in range(3):
+                if k_center_initial[dim] > 0:
+                    k_center = k_center_initial-k_shifts[dim]
+                elif k_center_initial[dim] < 0:
+                    k_center = k_center_initial+k_shifts[dim]
+                energies = np.minimum(energies,self._calculate_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center))
+        
         waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=1)
         
         return energies, waves
@@ -64,7 +95,7 @@ class ParabolicBand:
         :type  k_center: ndarray
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
-        energies, waves = self._calculate_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
+        energies, waves = self._calculate_parabolic_periodic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
         self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=energies, waves=waves))
         
 
@@ -106,6 +137,11 @@ class ParabolicBand:
         #labels = path['explicit_kpoints_labels'][:5]
 
         """ manual lines"""
+
+        raise NotImplementedError
+
+        # To be implemented
+        """
         path=[[0.0,0.0,0.5],[0.5,0.0,0.5],[0.5,0,0.0],[0.0,0.0,0.0],[0,0,0.5],[2./3.,1./3.,0.5],[2./3.,1./3.,0.0],[0,0,0]]
         label=(r'$A $',      r'$L$',       r'$M$',   r'$\Gamma$', r'$A $', r'$H$',  r'$K$',r'$\Gamma $')
 
@@ -144,6 +180,6 @@ class ParabolicBand:
         else:
             ax.set_ylim(ylim)
             return ax, fig
-
+        """
     def __repr__(self):
         return "Paraboliv band model for: \n \n {} \n".format(self._crystal)
