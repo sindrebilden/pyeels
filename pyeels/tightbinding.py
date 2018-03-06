@@ -41,18 +41,17 @@ class TightBinding:
             mesh = np.asarray(mesh)
 
         if isinstance(mesh, np.ndarray):
+            for i in range(len(mesh)):
+                if (mesh[i]%2==0):
+                    mesh[i] += 1
+
             self._crystal.brillouinzone.mesh = mesh
             mapping, grid = spg.get_ir_reciprocal_mesh(mesh, self._spg, is_shift=[0, 0, 0])
             
             if np.any(mesh==np.array([1, 1, 1])):
                 mesh+= (mesh==np.array([1, 1, 1]))*1
-            k_grid = grid[np.unique(mapping)]/(mesh-1)
 
-            k_list = []
-            for i, map_id in enumerate(mapping[np.unique(mapping)]):
-                k_list.append((grid[mapping==map_id]/(mesh-1)).tolist()) #np.dot(,self.cell.brillouinzone)
-            self._k_grid = k_grid
-            self._k_list = k_list
+            self._k_grid = grid/(mesh-1)
         else:
             _logger.warning("Unknown type {} for mesh, try ndarray.".format(type(mesh)))
         
@@ -77,7 +76,8 @@ class TightBinding:
             waves = np.stack([np.zeros(energies.shape,dtype=np.complex128),np.ones(energies.shape,dtype=np.complex128)], axis=2)
         
         for i, band in enumerate(energies):
-            self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, k_list=self._k_list, energies=band, waves=waves[i]))
+            self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=band, waves=waves[i]))
+
 
     
     def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, ax=None):
@@ -131,6 +131,21 @@ class TightBinding:
         else:
             ax.set_ylim(ylim)
             return ax, fig
+
+    def density_of_states(self, energybins):
+        """ calculates the density of states (DOS) in the material
+        :type  energybins: ndarray
+        :param energybins: numpy array of the energy bins for DOS
+        """
+
+        DOS = np.zeros(energybins.shape)
+
+        if len(self._crystal.brillouinzone.bands) > 0:
+            for band in self._crystal.brillouinzone.bands:
+                DOS += band.density_of_states(energybins)
+            return DOS
+        else:
+            raise ValueError("No bands found in crystal, run calculate() to calculate bands.")
 
     def __repr__(self):
         return "Parabolic band model for: \n \n {} \n".format(self._crystal)
