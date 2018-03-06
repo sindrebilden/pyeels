@@ -10,7 +10,7 @@ ext_modules = [ Extension('pyeels.cpyeels', sources = ['./pyeels/_spectrum/spect
 
 setup(
       name = 'PyEELS',
-      version = '1.0.5.dev1',
+      version = '1.0.8.dev1',
       author = "Sindre R. Bilden",
       author_email = "s.r.bilden@fys.uio.no",
       url = 'https://github.com/sindrerb/pyeels',
@@ -18,6 +18,7 @@ setup(
       #long_description = readme.read(),
       install_requires=['hyperspy', 'pythtb'], #Not longer required: 'spglib'
       packages=['pyeels'],
+      include_dirs = [numpy.get_include()]
       ext_modules = ext_modules
       )
 
