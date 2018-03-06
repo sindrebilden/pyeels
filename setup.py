@@ -18,7 +18,7 @@ setup(
       #long_description = readme.read(),
       install_requires=['hyperspy', 'pythtb'], #Not longer required: 'spglib'
       packages=['pyeels'],
-      include_dirs = [numpy.get_include()]
+      include_dirs = [np.get_include()],
       ext_modules = ext_modules
       )
 
