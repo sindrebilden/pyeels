@@ -27,10 +27,10 @@ calculate_momentum_squared (PyObject *dummy, PyObject *args)
     printf("Process started..\n");
     if(PyErr_CheckSignals()) goto aborted;    
 
-    npy_intp *shape;
+    npy_intp *shape = NULL;
     shape=PyArray_SHAPE(energy_bins);
 
-    npy_intp dims[4];
+    npy_intp dims[4] = {0, 0, 0, 0};
     dims[0] = shape[0];
     dims[1] = *(int*) PyArray_GETPTR1(diffractionBins, 0);
     dims[2] = *(int*) PyArray_GETPTR1(diffractionBins, 1);
