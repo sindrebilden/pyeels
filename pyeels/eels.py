@@ -250,25 +250,32 @@ class EELS:
 
         dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
 
-        if isinstance(dielectrics, np.ndarray):            
+        if not isinstance(dielectrics, type(None)):            
             weights = self.signal_weights()
 
-            if (dielectrics.shape == weights.shape):
-                if compact:
+            if compact:
+                if (dielectrics.shape == weights.shape):
                     signal_total = np.nan_to_num(dielectrics*weights)
                     return self._create_signal(signal_total, energyBins)
                 else:
+                    raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
+            else:
                     # Find a way to calculate transitions again o.o
                     original_title = self.title
-                    for i, dielectric in enumerate(dielectrics):
-                        self.title = original_title+" from band {} to {}".format(self._transitions[i][0],self._transitions[i][1])
-                        dielectrics[i] = self._create_signal(np.nan_to_num(dielectric/q_squared), energyBins)
-                    self.title = original_title
+                    signals = []
+                    for i, sub_dielectrics in enumerate(dielectrics):
+                        if (sub_dielectrics.shape == weights.shape):
+                            signal = np.nan_to_num(sub_dielectrics*weights)
+                            self.title = original_title+" from band {}: {} to {}: {}".format(self._transitions[i][0], self._transitions[i][2], self._transitions[i][1], self._transitions[i][3])
+                            signals.append(self._create_signal(signal, energyBins))                            
+                        else:
+                            raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
 
+                    self.title = original_title
                     return signals
 
-            else:
-                raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
+
+
         else:
             return None
 
@@ -326,18 +333,34 @@ class EELS:
 
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
-        if isinstance(polarizations, np.ndarray):
-            q_squared = calculate_momentum_squared(
-                    self.crystal.brillouinzone.mesh,
-                    self.crystal.brillouinzone.lattice,
-                    self.energyBins
-                    )
 
-            q_squared[q_squared[:] == 0] = np.nan
 
-            dielectric = np.nan_to_num(polarizations/q_squared) #(polarizations + polarizations**2/q_squared)/q_squared  ###### SHOULD I TREAT IMAGINARY PARTS?
-            return dielectric
 
+
+
+
+        if not isinstance(polarizations, type(None)):           
+            weights = self.signal_weights()
+
+            if compact:
+                if (polarizations.shape == weights.shape):
+                    signal_total = np.nan_to_num(polarizations*weights)
+                    return self._create_signal(signal_total, energyBins)
+                else:
+                    raise ValueError("The shapes of polarization and weights mismatch, try restart kernel.")
+            else:
+                    # Find a way to calculate transitions again o.o
+                    original_title = self.title
+                    signals = []
+                    for sub_polarizations in polarizations:
+                        if (sub_polarizations.shape == weights.shape):
+                            signals.append(np.nan_to_num(sub_polarizations*weights))
+                        else:
+                            raise ValueError("The shapes of polarization and weights mismatch, try restart kernel.")
+
+                    return signals
+
+            
         else:
             return None
 
@@ -384,10 +407,10 @@ class EELS:
                 # Interval is estimated to temperature/500, this corresponds to approx. 10th digit accuracy
                 if temperature != 0:
                     if initial.energy_min() < fermienergy-temperature/500 and final.energy_max() > fermienergy+temperature/500:
-                        self._transitions.append((i,f, initial, final))
+                        self._transitions.append((i, f, initial, final))
                 else:
                     if initial.energy_min() < fermienergy and final.energy_max() > fermienergy:
-                        self._transitions.append((i,f, initial, final))
+                        self._transitions.append((i, f, initial, final))
 
         if not max_cpu:
             max_cpu = cpu_count()
