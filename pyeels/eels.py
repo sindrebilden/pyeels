@@ -477,7 +477,27 @@ class EELS:
         return gauss
 
     @classmethod
-    def smear(cls, s, sigma):
+    def _thermal(cls, sigma, eRange):
+        """ Creates a gauss to smear data
+        :type  sigma: float
+        :param sigma: the sigmal value of the gauss
+
+        :type  eRange: ndarray
+        :param eRange: an array of energy values 
+
+        :returns: an array with a gaussian in energy space
+        """
+        dE = eRange[1]-eRange[0]
+        tx = np.arange(-31*sigma,31*sigma, dE) #Limit for 1e-3 treshold
+        thermal = np.imag(1/(tx-1j*sigma))
+        thermal = thermal/np.sum(thermal)
+        
+        therm =np.zeros((1,1,1,len(thermal)))
+        therm[0,0,0,:] = thermal
+        return therm
+
+    @classmethod
+    def gaussian_smear(cls, s, sigma):
         """ Smear the signal with a gaussian smearing
         :type  s: hyperspy signal
         :param s: the signal to be smeared
@@ -507,8 +527,43 @@ class EELS:
         s_smooth = copy.deepcopy(s)
         
         s_smooth.data = hist[:,:,:,crop_front:-crop_end]
-        s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " smoothed"
-        s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " smoothed"
+        s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " gaussian smearing s={}".format(sigma)
+        s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " gaussian smearing s={}".format(sigma)
+        return s_smooth
+
+    @classmethod
+    def thermal_smear(cls, s, sigma):
+        """ Smear the signal with a thermal smearing Im[1/(dE-i*sigma)]
+        :type  s: hyperspy signal
+        :param s: the signal to be smeared
+
+        :type  sigma: float  
+        :param sigma: the sigma value of the imaginary energy
+        
+        :returns: the smeared signal
+        """
+        hist = s.data
+        scale = s.axes_manager['Energy'].scale
+        offset = s.axes_manager['Energy'].offset
+        size = s.axes_manager['Energy'].size
+
+        eRange = np.linspace(offset, offset+(size-1)*scale, size)
+
+        thermal = cls._thermal(sigma, eRange)
+        
+        crop_front = len(thermal[0,0,0,:])//2
+        if len(thermal[0,0,0,:])%2 == 1:
+            crop_end = crop_front
+        else:
+            crop_end = crop_front-1
+            
+        hist = convolve(hist, thermal)
+        
+        s_smooth = copy.deepcopy(s)
+        
+        s_smooth.data = hist[:,:,:,crop_front:-crop_end]
+        s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " thermal smearing s={}".format(sigma)
+        s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " thermal smearing s={}".format(sigma)
         return s_smooth
 
     @classmethod
