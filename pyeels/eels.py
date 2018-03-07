@@ -345,7 +345,7 @@ class EELS:
             if compact:
                 if (polarizations.shape == weights.shape):
                     signal_total = np.nan_to_num(polarizations*weights)
-                    return self._create_signal(signal_total, energyBins)
+                    return signal_total
                 else:
                     raise ValueError("The shapes of polarization and weights mismatch, try restart kernel.")
             else:
