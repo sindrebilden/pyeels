@@ -4,7 +4,7 @@
 from distutils.core import setup, Extension
 import numpy as np
 
-ext_modules = [ Extension('pyeels.cpyeels', sources = ['./pyeels/_spectrum/spectrum.c'], extra_compile_args=['-std=c99']) ]
+ext_modules = [ Extension('pyeels.cpyeels', sources = ['./pyeels/_spectrum/spectrum.c']) ]
 
 #readme = open('README.md','r')
 
