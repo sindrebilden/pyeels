@@ -56,6 +56,7 @@ class NonParabolicBand:
         if not correction_factor:
             if energy_offset != 0:
                 correction_factor = 1/energy_offset
+                _logger.warning("No correction factor found, using 1/energy_offset as standard")
             else:
                 correction_factor = 0
 
@@ -82,7 +83,7 @@ class NonParabolicBand:
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
 
-        energies = self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
+        energies = self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, correction_factor=correction_factor)
 
 
         if np.any(k_center != 0):

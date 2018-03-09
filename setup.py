@@ -10,11 +10,11 @@ ext_modules = [ Extension('pyeels.cpyeels', sources = ['./pyeels/_spectrum/spect
 
 setup(
       name = 'PyEELS',
-      version = '0.1.1',
+      version = '0.1.2',
       author = "Sindre R. Bilden",
       author_email = "s.r.bilden@fys.uio.no",
       url = 'https://github.com/sindrerb/pyeels',
-      description = ("Python package for simulating EELS from band structures"),
+      description = ("(NB! Still in development) Python package for simulating EELS from band structures"),
       #long_description = readme.read(),
       install_requires=['hyperspy', 'pythtb', 'spglib'],
       packages=['pyeels'],
