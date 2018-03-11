@@ -125,18 +125,19 @@ class EELS:
         s = hs.signals.BaseSignal(data, metadata=metadata)
 
 
-        names = ["Energy", "q_x", "q_y", "q_z"]
+        names = ["Energy", "q_a", "q_b", "q_c"]
+        units = ["eV", "a-1", "b-1", "c-1"]
         for i in range(len(data.shape)-1):
-            name = names[i+1]
-            s.axes_manager[2-i].name = name
-            s.axes_manager[name].scale = 1.0/(self.crystal.brillouinzone.mesh[i]-1) #self.crystal.brillouinzone.lattice[i]
-            s.axes_manager[name].units = "AA-1"
+            name = names[i + 1]
+            s.axes_manager[2 - i].name  = name
+            s.axes_manager[name].scale  = 1.0 / (self.crystal.brillouinzone.mesh[i] - 1) #self.crystal.brillouinzone.lattice[i]
+            s.axes_manager[name].units  = units[i + 1]
             s.axes_manager[name].offset = -0.5#-self.crystal.brillouinzone.lattice[i]/2
         i += 1
         name = names[0]
         s.axes_manager[i].name = name
-        s.axes_manager[name].scale = eBin[1]-eBin[0]
-        s.axes_manager[name].units = "eV"
+        s.axes_manager[name].scale  = eBin[1] - eBin[0]
+        s.axes_manager[name].units  = names[0]
         s.axes_manager[name].offset = eBin[0]
         #s.metadata.Signal.binned = True
 

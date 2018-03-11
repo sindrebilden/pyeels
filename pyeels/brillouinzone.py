@@ -20,9 +20,9 @@ class BrillouinZone:
         :type  crystal: crystal object
         :param crystal: the crystal object containing real space information
         """
-        self.a = np.cross(crystal.b, crystal.c) / crystal.volume * 2*np.pi #reciprocal aangstrom
-        self.b = np.cross(crystal.c, crystal.a) / crystal.volume * 2*np.pi #reciprocal aangstrom
-        self.c = np.cross(crystal.a, crystal.b) / crystal.volume * 2*np.pi #reciprocal aangstrom
+        self.a = np.cross(crystal.b, crystal.c) / crystal.volume * 2 * np.pi #reciprocal aangstrom
+        self.b = np.cross(crystal.c, crystal.a) / crystal.volume * 2 * np.pi #reciprocal aangstrom
+        self.c = np.cross(crystal.a, crystal.b) / crystal.volume * 2 * np.pi #reciprocal aangstrom
 
         self.lattice = np.vstack([self.a, self.b, self.c])
 
