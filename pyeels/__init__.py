@@ -56,13 +56,18 @@ def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=Non
 
     if not colors:
         standard_colors = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
+        if (2*len(standard_colors) < len(signals)):
+            for i in range(len(signals)-2*len(standard_colors)):
+                standard_colors.append(standard_colors[i])
+                standard_colors.append(standard_colors[i+1])
+
         colors = []
         for i in range(len(signals)):
             colors.append(standard_colors[2*i])
     elif isinstance(colors,str):
         colors = [colors]
 
-    if (len(colors) < len(colors)):
+    if (len(colors) < len(signals)):
         for i in range(len(signals)-len(colors)):
             colors.append(colors[i])
 
