@@ -71,6 +71,11 @@ class EELS:
             self.notes = "No notes provided."
         else:
             self.notes = notes
+
+
+    def set_incident_energy(self, incident_energy):
+        self.incident_energy = incident_energy
+        self.incident_k = self.incident_momentum()
         
     def _create_meta(self):
         """ Generate and organize info into a matadata dictionary recognized by hyperspy
@@ -222,11 +227,14 @@ class EELS:
         return DOS
 
 
-    def calculate_eels_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+    def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
         
         :type  energyBins: ndarray
         :param energyBins: The binning range 
+
+        :type  incident_energy: float
+        :param incident_energy: The energy of the incident electrons
         
         :type  bands: tuple
         :param bands: Tuple of start index and end index of the bands included from the band structure
@@ -246,8 +254,15 @@ class EELS:
         :returns: An individual hyperspy spectrum or list of spectra, see :param: compact for info, returns None if terminated
         """
 
-#        if not compact:
-#            raise NotImplementedError("EELS for individual bands are not implemented.")
+
+        if incident_energy:
+            self.incident_energy = incident_energy
+            self.incident_k = self.incident_momentum()
+        else:
+            if not self.incident_energy:
+                _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
+                self.incident_energy = 60e3
+                self.incident_k = self.incident_momentum()
 
         dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
 
@@ -261,7 +276,6 @@ class EELS:
                 else:
                     raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
             else:
-                    # Find a way to calculate transitions again o.o
                     original_title = self.title
                     signals = []
                     for i, sub_dielectrics in enumerate(dielectrics):
@@ -280,29 +294,44 @@ class EELS:
         else:
             return None
 
+    def incident_momentum(self):
+        """ Calculates the relativistic incident momentum from an energy
+        :type  incident_energy: float
+        :param incident_energy: the incident energy
+        :returns: the incident momentum
+        """
+        _MC2 = 0.511e6 #eV
+        _HBARC = 1973 #eVÅ
+
+        momentum = np.sqrt((self.incident_energy+_MC2)**2-_MC2**2)/_HBARC
+
+        return momentum
     def signal_weights(self):
         """ Calculates the signal weights (q^2+omega^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
         
         :returns: singal weights in energy and momentum space 
         """
 
+        # Calculate theta^2
         q_squared = calculate_momentum_squared(
         self.crystal.brillouinzone.mesh,
         self.crystal.brillouinzone.lattice,
         self.energyBins
-        )
+        )/self.incident_k**2
 
-        e = self.energyBins**2
+        # Calculate theta_e^2
+        e = (self.energyBins/(2*self.incident_energy))**2
 
+        # Calculate (theta^2+theta_e^2)
         for i in range(0,q_squared.shape[1]):
             for j in range(0,q_squared.shape[2]):
                 for k in range(0,q_squared.shape[3]):
                     q_squared[:,i,j,k] += e
 
+
+        # Calculate (theta^2+theta_e^2)^-1
         q_squared[q_squared[:] == 0] = np.nan
-
         weights = q_squared**-1
-
         weights[np.isnan(weights)] = 0
 
         return weights
@@ -350,7 +379,6 @@ class EELS:
                 else:
                     raise ValueError("The shapes of polarization and weights mismatch, try restart kernel.")
             else:
-                    # Find a way to calculate transitions again o.o
                     original_title = self.title
                     signals = []
                     for sub_polarizations in polarizations:
