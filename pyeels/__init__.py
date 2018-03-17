@@ -16,12 +16,15 @@ from pyeels.eels import EELS
 
 
 import matplotlib.pyplot as plt
-def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=None, linewidth=None, labels=None):
+def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=None, linewidth=None, labels=None, ax=None):
     
     s = signals[0]
     x_label = "{} [{}]".format(s.axes_manager.signal_axes[0].name,s.axes_manager.signal_axes[0].units)
     
-    fig, ax = plt.subplots()
+    newfig = False
+    if not ax:
+        fig, ax = plt.subplots()
+        newfig = True
     ax.set_xlabel(x_label)
     ax.set_ylabel("Intensity [arb.]")
 
@@ -85,4 +88,8 @@ def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=Non
         ax.plot(x,y,linestyles[i],color=colors[i], linewidth=linewidth, label=label)
         if fill[i]:
             ax.fill_between(x,0,y,facecolor=colors[i],alpha=0.4)
-    return fig, ax            
+
+    if newfig:
+        return fig, ax            
+    else:
+        return ax
