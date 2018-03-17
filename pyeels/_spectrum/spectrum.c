@@ -258,6 +258,9 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
                                 See Gajdos or Adler
                             }
                             */
+
+
+                            /* JUST A TEST
                             if (initial_k == final_k){
 
                                 k_squared = 0;
@@ -270,6 +273,9 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
                             } else {
                                 EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue);
                             }
+                            */
+                            EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue);
+
                             iterations ++;
                             //printf("%i\n", iterations);
                         }
