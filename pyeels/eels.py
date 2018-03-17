@@ -307,7 +307,7 @@ class EELS:
 
         return momentum
     def signal_weights(self):
-        """ Calculates the signal weights (q^2+omega^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
+        """ Calculates the signal weights (theta^2+theta_E^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
         
         :returns: singal weights in energy and momentum space 
         """
@@ -368,7 +368,7 @@ class EELS:
 
             # Correct the weighting in the optical limit (Stephen L. Adler 1962)
             center = ((self.bins-1)/2).astype(int)
-            weights[:,center[0], center[1], center[2]] = (4*np.pi*self._E_SQUARED*self._HBARC**4)/(self._MC2**2*energyBins**2)
+            weights[:,center[0], center[1], center[2]] = (4*np.pi*self._E_SQUARED*self._HBARC**4)/(self._MC2**2*self.energyBins**2)
 
             if compact:
                 if (polarizations.shape == weights.shape):
@@ -499,7 +499,7 @@ class EELS:
             self.energyBins, 
             self.fermienergy, 
             self.temperature
-        )/k_weights**2
+        )/k_weights
 
     def _init_worker(self):
         sign.signal(sign.SIGINT, sign.SIG_IGN)
