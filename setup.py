@@ -10,7 +10,7 @@ ext_modules = [ Extension('pyeels.cpyeels', sources = ['./pyeels/_spectrum/spect
 
 setup(
       name = 'PyEELS',
-      version = '0.1.5',
+      version = '0.1.6',
       author = "Sindre R. Bilden",
       author_email = "s.r.bilden@fys.uio.no",
       url = 'https://github.com/sindrerb/pyeels',
