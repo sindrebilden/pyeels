@@ -11,7 +11,10 @@ import logging
 _logger = logging.getLogger(__name__)
 
 class EELS:
-    
+    _MC2 = 0.511e6 #eV
+    _HBARC = 1973 #eVÅ
+    _E_SQUARED = 0.09170123689*_HBARC
+
     temperature = 0
     fermienergy = 0
     
@@ -267,7 +270,7 @@ class EELS:
         dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
 
         if not isinstance(dielectrics, type(None)):            
-            weights = self.signal_weights()
+            weights = self.signal_weights()*(self._E_SQUARED*self._MC2)/(np.pi**2*self._HBARC**2*self.incident_k**3)
 
             if compact:
                 if (dielectrics.shape == weights.shape):
@@ -300,10 +303,7 @@ class EELS:
         :param incident_energy: the incident energy
         :returns: the incident momentum
         """
-        _MC2 = 0.511e6 #eV
-        _HBARC = 1973 #eVÅ
-
-        momentum = np.sqrt((self.incident_energy+_MC2)**2-_MC2**2)/_HBARC
+        momentum = np.sqrt((self.incident_energy+self._MC2)**2-self._MC2**2)/self._HBARC
 
         return momentum
     def signal_weights(self):
@@ -364,11 +364,11 @@ class EELS:
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
         if not isinstance(polarizations, type(None)):           
-            weights = self.signal_weights()
+            weights = self.signal_weights()*(4*np.pi*self._E_SQUARED)/self.incident_k**2
 
             # Correct the weighting in the optical limit (Stephen L. Adler 1962)
-            center = (self.mesh-1/2)
-            weights[center[0], center[1], center[2]] = energyBins**-2
+            center = ((self.bins-1)/2).astype(int)
+            weights[:,center[0], center[1], center[2]] = (4*np.pi*self._E_SQUARED*self._HBARC**4)/(self._MC2**2*energyBins**2)
 
             if compact:
                 if (polarizations.shape == weights.shape):
@@ -490,7 +490,7 @@ class EELS:
         k_weights = self.crystal.brillouinzone.mesh[0]*self.crystal.brillouinzone.mesh[1]*self.crystal.brillouinzone.mesh[2];      
 
         return calculate_spectrum(
-            self.crystal.brillouinzone.mesh,
+            self.bins,
             self.crystal.brillouinzone.lattice, 
             initial_band.k_grid,
             np.stack(energyBands, axis=1),  
