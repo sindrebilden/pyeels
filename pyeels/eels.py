@@ -363,14 +363,12 @@ class EELS:
 
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
-
-
-
-
-
-
         if not isinstance(polarizations, type(None)):           
             weights = self.signal_weights()
+
+            # Correct the weighting in the optical limit (Stephen L. Adler 1962)
+            center = (self.mesh-1/2)
+            weights[center[0], center[1], center[2]] = energyBins**-2
 
             if compact:
                 if (polarizations.shape == weights.shape):
