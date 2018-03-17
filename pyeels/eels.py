@@ -572,11 +572,20 @@ class EELS:
         else:
             crop_end = crop_front-1
             
-        hist = convolve(hist, gaussian)
-        
+        if len(hist.shape) == 1:
+            hist = convolve(hist, gaussian[0,0,0,:])
+        elif len(hist.shape) == 2:
+            hist = convolve(hist, gaussian[0,0,:,:])
+        elif len(hist.shape) == 3:
+            hist = convolve(hist, gaussian[0,:,:,:])
+        else:
+            hist = convolve(hist, gaussian)
+    
+
         s_smooth = copy.deepcopy(s)
         
-        s_smooth.data = hist[:,:,:,crop_front:-crop_end]
+        s_smooth.data = hist[...,crop_front:-crop_end]
+
         s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " gaussian smearing s={}".format(sigma)
         s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " gaussian smearing s={}".format(sigma)
         return s_smooth
@@ -602,16 +611,27 @@ class EELS:
         thermal = cls._thermal(sigma, eRange)
         
         crop_front = len(thermal[0,0,0,:])//2
+
         if len(thermal[0,0,0,:])%2 == 1:
             crop_end = crop_front
         else:
             crop_end = crop_front-1
-            
-        hist = convolve(hist, thermal)
         
+        if len(hist.shape) == 1:
+            hist = convolve(hist, thermal[0,0,0,:])
+        elif len(hist.shape) == 2:
+            hist = convolve(hist, thermal[0,0,:,:])
+        elif len(hist.shape) == 3:
+            hist = convolve(hist, thermal[0,:,:,:])
+        else:
+            hist = convolve(hist, thermal)
+    
+    
+
         s_smooth = copy.deepcopy(s)
         
-        s_smooth.data = hist[:,:,:,crop_front:-crop_end]
+        s_smooth.data = hist[...,crop_front:-crop_end]
+
         s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " thermal smearing s={}".format(sigma)
         s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " thermal smearing s={}".format(sigma)
         return s_smooth
