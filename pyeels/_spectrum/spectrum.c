@@ -196,7 +196,10 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     double momTrans[3] = {0.0,0.0,0.0};
     double q_squared;
     double fermiValueI, fermiValue;
+    double k_squared;
+    double k_temp;
 
+    //Convert temperature to thermal energy
     temperature = temperature * 8.93103448276e-5;
 
 
@@ -256,7 +259,23 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
                             }
                             */
 
+
+                            /* JUST A TEST
+                            if (initial_k == final_k){
+
+                                k_squared = 0;
+                                for(int q = 0; q < 3; q++){
+                                    k_temp = (*(double *) PyArray_GETPTR2(k_grid, initial_k, q));
+                                    k_squared += k_temp*k_temp;
+                                }
+
+                                EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue*k_squared);
+                            } else {
+                                EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue);
+                            }
+                            */
                             EELS[energyIndex][qIndex[0]][qIndex[1]][qIndex[2]] += (probability*fermiValue);
+
                             iterations ++;
                             //printf("%i\n", iterations);
                         }

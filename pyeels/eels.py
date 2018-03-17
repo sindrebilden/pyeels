@@ -11,7 +11,10 @@ import logging
 _logger = logging.getLogger(__name__)
 
 class EELS:
-    
+    _MC2 = 0.511e6 #eV
+    _HBARC = 1973 #eVÅ
+    _E_SQUARED = 0.09170123689*_HBARC
+
     temperature = 0
     fermienergy = 0
     
@@ -71,6 +74,11 @@ class EELS:
             self.notes = "No notes provided."
         else:
             self.notes = notes
+
+
+    def set_incident_energy(self, incident_energy):
+        self.incident_energy = incident_energy
+        self.incident_k = self.incident_momentum()
         
     def _create_meta(self):
         """ Generate and organize info into a matadata dictionary recognized by hyperspy
@@ -125,18 +133,19 @@ class EELS:
         s = hs.signals.BaseSignal(data, metadata=metadata)
 
 
-        names = ["Energy", "q_x", "q_y", "q_z"]
+        names = ["Energy", "q_a", "q_b", "q_c"]
+        units = ["eV", "a-1", "b-1", "c-1"]
         for i in range(len(data.shape)-1):
-            name = names[i+1]
-            s.axes_manager[2-i].name = name
-            s.axes_manager[name].scale = 1.0/(self.crystal.brillouinzone.mesh[i]-1) #self.crystal.brillouinzone.lattice[i]
-            s.axes_manager[name].units = "AA-1"
+            name = names[i + 1]
+            s.axes_manager[2 - i].name  = name
+            s.axes_manager[name].scale  = 1.0 / (self.crystal.brillouinzone.mesh[i] - 1) #self.crystal.brillouinzone.lattice[i]
+            s.axes_manager[name].units  = units[i + 1]
             s.axes_manager[name].offset = -0.5#-self.crystal.brillouinzone.lattice[i]/2
         i += 1
         name = names[0]
         s.axes_manager[i].name = name
-        s.axes_manager[name].scale = eBin[1]-eBin[0]
-        s.axes_manager[name].units = "eV"
+        s.axes_manager[name].scale  = eBin[1] - eBin[0]
+        s.axes_manager[name].units  = names[0]
         s.axes_manager[name].offset = eBin[0]
         #s.metadata.Signal.binned = True
 
@@ -221,11 +230,14 @@ class EELS:
         return DOS
 
 
-    def calculate_eels_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+    def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
         
         :type  energyBins: ndarray
         :param energyBins: The binning range 
+
+        :type  incident_energy: float
+        :param incident_energy: The energy of the incident electrons
         
         :type  bands: tuple
         :param bands: Tuple of start index and end index of the bands included from the band structure
@@ -245,13 +257,20 @@ class EELS:
         :returns: An individual hyperspy spectrum or list of spectra, see :param: compact for info, returns None if terminated
         """
 
-#        if not compact:
-#            raise NotImplementedError("EELS for individual bands are not implemented.")
+
+        if incident_energy:
+            self.incident_energy = incident_energy
+            self.incident_k = self.incident_momentum()
+        else:
+            if not self.incident_energy:
+                _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
+                self.incident_energy = 60e3
+                self.incident_k = self.incident_momentum()
 
         dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
 
         if not isinstance(dielectrics, type(None)):            
-            weights = self.signal_weights()
+            weights = self.signal_weights()*(self._E_SQUARED*self._MC2)/(np.pi**2*self._HBARC**2*self.incident_k**3)
 
             if compact:
                 if (dielectrics.shape == weights.shape):
@@ -260,7 +279,6 @@ class EELS:
                 else:
                     raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
             else:
-                    # Find a way to calculate transitions again o.o
                     original_title = self.title
                     signals = []
                     for i, sub_dielectrics in enumerate(dielectrics):
@@ -279,29 +297,41 @@ class EELS:
         else:
             return None
 
+    def incident_momentum(self):
+        """ Calculates the relativistic incident momentum from an energy
+        :type  incident_energy: float
+        :param incident_energy: the incident energy
+        :returns: the incident momentum
+        """
+        momentum = np.sqrt((self.incident_energy+self._MC2)**2-self._MC2**2)/self._HBARC
+
+        return momentum
     def signal_weights(self):
-        """ Calculates the signal weights (q^2+omega^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
+        """ Calculates the signal weights (theta^2+theta_E^2)^-1 rising from the formulation of stopping power, by R. H. Ritchie (1957).
         
         :returns: singal weights in energy and momentum space 
         """
 
+        # Calculate theta^2
         q_squared = calculate_momentum_squared(
         self.crystal.brillouinzone.mesh,
         self.crystal.brillouinzone.lattice,
         self.energyBins
-        )
+        )/self.incident_k**2
 
-        e = self.energyBins**2
+        # Calculate theta_e^2
+        e = (self.energyBins/(2*self.incident_energy))**2
 
+        # Calculate (theta^2+theta_e^2)
         for i in range(0,q_squared.shape[1]):
             for j in range(0,q_squared.shape[2]):
                 for k in range(0,q_squared.shape[3]):
                     q_squared[:,i,j,k] += e
 
+
+        # Calculate (theta^2+theta_e^2)^-1
         q_squared[q_squared[:] == 0] = np.nan
-
         weights = q_squared**-1
-
         weights[np.isnan(weights)] = 0
 
         return weights
@@ -333,23 +363,20 @@ class EELS:
 
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
-
-
-
-
-
-
         if not isinstance(polarizations, type(None)):           
-            weights = self.signal_weights()
+            weights = self.signal_weights()*(4*np.pi*self._E_SQUARED)/self.incident_k**2
+
+            # Correct the weighting in the optical limit (Stephen L. Adler 1962)
+            center = ((self.bins-1)/2).astype(int)
+            weights[:,center[0], center[1], center[2]] = (4*np.pi*self._E_SQUARED*self._HBARC**4)/(self._MC2**2*self.energyBins**2)
 
             if compact:
                 if (polarizations.shape == weights.shape):
                     signal_total = np.nan_to_num(polarizations*weights)
-                    return self._create_signal(signal_total, energyBins)
+                    return signal_total
                 else:
                     raise ValueError("The shapes of polarization and weights mismatch, try restart kernel.")
             else:
-                    # Find a way to calculate transitions again o.o
                     original_title = self.title
                     signals = []
                     for sub_polarizations in polarizations:
@@ -463,7 +490,7 @@ class EELS:
         k_weights = self.crystal.brillouinzone.mesh[0]*self.crystal.brillouinzone.mesh[1]*self.crystal.brillouinzone.mesh[2];      
 
         return calculate_spectrum(
-            self.crystal.brillouinzone.mesh,
+            self.bins,
             self.crystal.brillouinzone.lattice, 
             initial_band.k_grid,
             np.stack(energyBands, axis=1),  
@@ -472,7 +499,7 @@ class EELS:
             self.energyBins, 
             self.fermienergy, 
             self.temperature
-        )/k_weights**2
+        )/k_weights
 
     def _init_worker(self):
         sign.signal(sign.SIGINT, sign.SIG_IGN)
@@ -545,11 +572,20 @@ class EELS:
         else:
             crop_end = crop_front-1
             
-        hist = convolve(hist, gaussian)
-        
+        if len(hist.shape) == 1:
+            hist = convolve(hist, gaussian[0,0,0,:])
+        elif len(hist.shape) == 2:
+            hist = convolve(hist, gaussian[0,0,:,:])
+        elif len(hist.shape) == 3:
+            hist = convolve(hist, gaussian[0,:,:,:])
+        else:
+            hist = convolve(hist, gaussian)
+    
+
         s_smooth = copy.deepcopy(s)
         
-        s_smooth.data = hist[:,:,:,crop_front:-crop_end]
+        s_smooth.data = hist[...,crop_front:-crop_end]
+
         s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " gaussian smearing s={}".format(sigma)
         s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " gaussian smearing s={}".format(sigma)
         return s_smooth
@@ -575,16 +611,27 @@ class EELS:
         thermal = cls._thermal(sigma, eRange)
         
         crop_front = len(thermal[0,0,0,:])//2
+
         if len(thermal[0,0,0,:])%2 == 1:
             crop_end = crop_front
         else:
             crop_end = crop_front-1
-            
-        hist = convolve(hist, thermal)
         
+        if len(hist.shape) == 1:
+            hist = convolve(hist, thermal[0,0,0,:])
+        elif len(hist.shape) == 2:
+            hist = convolve(hist, thermal[0,0,:,:])
+        elif len(hist.shape) == 3:
+            hist = convolve(hist, thermal[0,:,:,:])
+        else:
+            hist = convolve(hist, thermal)
+    
+    
+
         s_smooth = copy.deepcopy(s)
         
-        s_smooth.data = hist[:,:,:,crop_front:-crop_end]
+        s_smooth.data = hist[...,crop_front:-crop_end]
+
         s_smooth.metadata['General']['title']  = s.metadata['General']['title'] + " thermal smearing s={}".format(sigma)
         s_smooth.metadata['General']['name']  = s.metadata['General']['name'] + " thermal smearing s={}".format(sigma)
         return s_smooth

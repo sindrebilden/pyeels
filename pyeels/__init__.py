@@ -16,12 +16,15 @@ from pyeels.eels import EELS
 
 
 import matplotlib.pyplot as plt
-def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=None, linewidth=None, labels=None):
+def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=None, linewidth=None, labels=None, ax=None):
     
     s = signals[0]
     x_label = "{} [{}]".format(s.axes_manager.signal_axes[0].name,s.axes_manager.signal_axes[0].units)
     
-    fig, ax = plt.subplots()
+    newfig = False
+    if not ax:
+        fig, ax = plt.subplots()
+        newfig = True
     ax.set_xlabel(x_label)
     ax.set_ylabel("Intensity [arb.]")
 
@@ -56,13 +59,18 @@ def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=Non
 
     if not colors:
         standard_colors = ['#1f77b4', '#aec7e8', '#ff7f0e', '#ffbb78', '#2ca02c', '#98df8a', '#d62728', '#ff9896', '#9467bd', '#c5b0d5', '#8c564b', '#c49c94', '#e377c2', '#f7b6d2', '#7f7f7f', '#c7c7c7', '#bcbd22', '#dbdb8d', '#17becf', '#9edae5']
+        if (2*len(standard_colors) < len(signals)):
+            for i in range(len(signals)-2*len(standard_colors)):
+                standard_colors.append(standard_colors[i])
+                standard_colors.append(standard_colors[i+1])
+
         colors = []
         for i in range(len(signals)):
             colors.append(standard_colors[2*i])
     elif isinstance(colors,str):
         colors = [colors]
 
-    if (len(colors) < len(colors)):
+    if (len(colors) < len(signals)):
         for i in range(len(signals)-len(colors)):
             colors.append(colors[i])
 
@@ -80,4 +88,8 @@ def plot_signals(signals, colors=None, linestyles=None, plotstyle=None, fill=Non
         ax.plot(x,y,linestyles[i],color=colors[i], linewidth=linewidth, label=label)
         if fill[i]:
             ax.fill_between(x,0,y,facecolor=colors[i],alpha=0.4)
-    return fig, ax            
+
+    if newfig:
+        return fig, ax            
+    else:
+        return ax

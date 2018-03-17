@@ -56,6 +56,7 @@ class NonParabolicBand:
         if not correction_factor:
             if energy_offset != 0:
                 correction_factor = 1/energy_offset
+                _logger.warning("No correction factor found, using 1/energy_offset as standard")
             else:
                 correction_factor = 0
 
@@ -82,9 +83,10 @@ class NonParabolicBand:
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
 
-        energies = self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
+        energies = self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, correction_factor=correction_factor)
 
 
+        # Seens like this is allways a case..
         if np.any(k_center != 0):
             k_shifts = np.eye(3)
             k_center_initial = k_center
@@ -94,7 +96,7 @@ class NonParabolicBand:
                     k_center = k_center_initial-k_shifts[dim]
                 elif k_center_initial[dim] < 0:
                     k_center = k_center_initial+k_shifts[dim]
-                energies = np.minimum(energies,self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center))
+                energies = np.minimum(energies,self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, correction_factor=correction_factor))
         
         waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=1)
         
@@ -112,6 +114,7 @@ class NonParabolicBand:
         :type  k_center: ndarray
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
+
         energies, waves = self._calculate_non_parabolic_periodic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, correction_factor=correction_factor)
         self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=energies, waves=waves))
         
@@ -151,4 +154,4 @@ class NonParabolicBand:
         raise NotImplementedError
 
     def __repr__(self):
-        return "Paraboliv band model for: \n \n {} \n".format(self._crystal)
+        return "Non-Parabolic band model for: \n \n {} \n".format(self._crystal)
