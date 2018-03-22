@@ -85,6 +85,7 @@ class TightBinding:
         
         :type  ylim: tuple, list
         :param ylim: lower and upper limit of y-values (ymin,ymax)
+        :returns: figure, ax
         """
 
         """ seekpath automatic lines"""
@@ -107,21 +108,21 @@ class TightBinding:
             fig, ax = plt.subplots(figsize=(8,6))
             fig.tight_layout()
 
-            ax.set_title("Bandstructure for Zno based on Kobayashi")
-            ax.set_ylabel("Band energy")
+        ax.set_title("Bandstructure for Zno based on Kobayashi")
+        ax.set_ylabel("Band energy")
 
-            # specify horizontal axis details
-            ax.set_xlim([0,k_node[-1]])
-            # put tickmarks and labels at node positions
-            ax.set_xticks(k_node)
-            ax.set_xticklabels(label)
-            # add vertical lines at node positions
+        # specify horizontal axis details
+        ax.set_xlim([0,k_node[-1]])
+        # put tickmarks and labels at node positions
+        ax.set_xticks(k_node)
+        ax.set_xticklabels(label)
+        # add vertical lines at node positions
 
-            for n in range(len(k_node)):
-                if label[n] == r'$\Gamma$':
-                    ax.axvline(x=k_node[n],linewidth=1, color='k')
-                else:
-                    ax.axvline(x=k_node[n],linewidth=0.5, color='k')
+        for n in range(len(k_node)):
+            if label[n] == r'$\Gamma$':
+                ax.axvline(x=k_node[n],linewidth=1, color='k')
+            else:
+                ax.axvline(x=k_node[n],linewidth=0.5, color='k')
     
         for band in evals[bands[0]:bands[1]]:
             ax.plot(k_dist, band, color=color, linestyle=linestyle, marker=marker)
@@ -130,7 +131,7 @@ class TightBinding:
             return ax
         else:
             ax.set_ylim(ylim)
-            return ax, fig
+            return fig, ax
 
     def density_of_states(self, energybins):
         """ calculates the density of states (DOS) in the material
