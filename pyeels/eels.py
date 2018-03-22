@@ -20,6 +20,8 @@ class EELS:
     
     def __init__(self, crystal, name=None):
         self.crystal = crystal
+
+        self.set_incident_energy(60e3)
         
 
     def set_diffractionzone(self, zone=None, bins=None):
