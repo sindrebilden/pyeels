@@ -2,7 +2,9 @@ import hyperspy.api as hs
 from pyeels.cpyeels import calculate_spectrum, calculate_momentum_squared
 import numpy as np
 from multiprocessing import Pool, cpu_count
-from scipy.signal import convolve as convolve
+from scipy.signal import convolve, kaiser
+from scipy.fftpack import hilbert
+
 import copy
 import os
 import signal as sign
@@ -221,10 +223,10 @@ class EELS:
         :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
         """
 
-        DOS = np.zeros(self.brillouinzone.bands[0].shape)
+        DOS = np.zeros(self.crystal.brillouinzone.bands[0].shape)
 
-        for initial_band in self.brillouinzone.bands:
-            for final_band in self.brillouinzone.bands:
+        for initial_band in self.crystal.brillouinzone.bands:
+            for final_band in self.crystal.brillouinzone.bands:
                 
                 if initial_band != final_band:
                     DOS += final_band.energies-initial_band.energies
@@ -261,31 +263,42 @@ class EELS:
 
 
         if incident_energy:
-            self.incident_energy = incident_energy
-            self.incident_k = self.incident_momentum()
+            self.set_incident_energy(incident_energy)
         else:
             if not self.incident_energy:
                 _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
-                self.incident_energy = 60e3
-                self.incident_k = self.incident_momentum()
+                self.set_incident_energy(60e3)
 
-        dielectrics = self.calculate_dielectric_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
+        dielectric_imag = self.calculate_dielectric_imag_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
 
-        if not isinstance(dielectrics, type(None)):            
+        energy_loss = []
+        if not isinstance(dielectric_imag, type(None)):            
+
+            if compact:
+                energy_loss = self.calculate_energy_loss(dielectric_imag, energyBins)
+
+            else:
+                for i, sub_diel_imag in enumerate(dielectric_imag):
+                    loss_function = self.calculate_energy_loss(sub_diel_imag, energyBins)
+                    energy_loss.append(loss_function)  
+        else:
+            return None                          
+
+        if not isinstance(energy_loss, type(None)):            
             weights = self.signal_weights()*(self._E_SQUARED*self._MC2)/(np.pi**2*self._HBARC**2*self.incident_k**3)
 
             if compact:
-                if (dielectrics.shape == weights.shape):
-                    signal_total = np.nan_to_num(dielectrics*weights)
+                if (energy_loss.shape == weights.shape):
+                    signal_total = np.nan_to_num(energy_loss*weights)
                     return self._create_signal(signal_total, energyBins)
                 else:
                     raise ValueError("The shapes of dielectric function and weights mismatch, try restart kernel.")
             else:
                     original_title = self.title
                     signals = []
-                    for i, sub_dielectrics in enumerate(dielectrics):
-                        if (sub_dielectrics.shape == weights.shape):
-                            signal = np.nan_to_num(sub_dielectrics*weights)
+                    for i, sub_energy_loss in enumerate(energy_loss):
+                        if (sub_energy_loss.shape == weights.shape):
+                            signal = np.nan_to_num(sub_energy_loss*weights)
                             self.title = original_title+" from band {}: {} to {}: {}".format(self._transitions[i][0], self._transitions[i][2], self._transitions[i][1], self._transitions[i][3])
                             signals.append(self._create_signal(signal, energyBins))                            
                         else:
@@ -293,7 +306,6 @@ class EELS:
 
                     self.title = original_title
                     return signals
-
 
 
         else:
@@ -338,7 +350,26 @@ class EELS:
 
         return weights
 
-    def calculate_dielectric_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+    def calculate_energy_loss(self, dielectric_imag, energyBins):
+        """ Calculate energy loss function for a spectrum image """
+
+        axes_shape = dielectric_imag.shape[1:]
+        energy_shape = dielectric_imag.shape[0]
+
+        flat_axes = np.zeros(axes_shape).flatten().shape
+
+        dielectric_imag = dielectric_imag.reshape((energy_shape,)+flat_axes)        
+        energy_loss = np.zeros((energy_shape,)+flat_axes)
+
+        for i, diel in enumerate(dielectric_imag.T):
+            energy_loss[:,i] = self.energy_loss_function(diel, energyBins)
+
+        energy_loss = energy_loss.reshape((energy_shape,)+axes_shape)
+
+        return energy_loss
+
+
+    def calculate_dielectric_imag_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent dielectric function of the system, using multiple processes
         
         :type  energyBins: ndarray
@@ -506,6 +537,54 @@ class EELS:
     def _init_worker(self):
         sign.signal(sign.SIGINT, sign.SIG_IGN)
         
+
+    def kk_imag_to_real(self, imag, energy, beta=14, sigma=1, background_permittivity=0):
+        """ Kramers Kronig transformation of the imaginary dielectric function to a real dielectric function
+        :type  imag: numpy array
+        :param imag: the imaginary dielectric function along an energy axis
+        
+        :type  energy: numpy array
+        :param energy: the energy axis of the imaginary dielectric function
+        
+        :type  beta: int, float
+        :param beta: a parameter of the attenuation window, 14 is standard suggested by the scipy package
+        
+        :type  sigma: float
+        :param sigma: a parameter of the center attenuation (an inverse gauss), 1 is standard 
+        
+        :type  background_permittivity: float
+        :param background_permittivity: a correction to the calculation of the real dielectric function, usually for ferroelectric materials
+        
+        :returns: the real dielectric function along the energy axis
+        """
+
+        half_index = imag.shape[0]
+
+        
+        imag = np.hstack([-np.array(list(reversed(imag))),imag])
+        energy = np.hstack([-np.array(list(reversed(energy))),energy])
+        
+        inverse_gauss = 1-np.exp(-energy**2/sigma)
+        
+        window = kaiser(imag.shape[0],beta)
+        
+        return hilbert(imag*window*inverse_gauss)[half_index:]+background_permittivity
+
+    def energy_loss_function(self, imag, energy):
+        """ Calculated the full energy loss function Im[-eps**-1] from the imaginary dielectric funtion
+        :type  imag: numpy array
+        :param imag: the imaginary dielectric function along an energy axis
+        
+        :type  energy: numpy array
+        :param energy: the energy axis of the imaginary dielectric function
+        
+        :returns: the energy loss function along the enery axis
+        """
+
+        real = self.kk_imag_to_real(imag, energy)
+
+        return imag/(real**2+imag**2)
+
 
     # Signal handeling
     @classmethod
