@@ -234,7 +234,7 @@ class EELS:
         return DOS
 
 
-    def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+    def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, background_permittivity=0, max_cpu=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
         
         :type  energyBins: ndarray
@@ -350,7 +350,7 @@ class EELS:
 
         return weights
 
-    def calculate_energy_loss(self, dielectric_imag, energyBins):
+    def calculate_energy_loss(self, dielectric_imag, energyBins, background_permittivity=0):
         """ Calculate energy loss function for a spectrum image """
 
         axes_shape = dielectric_imag.shape[1:]
@@ -362,11 +362,29 @@ class EELS:
         energy_loss = np.zeros((energy_shape,)+flat_axes)
 
         for i, diel in enumerate(dielectric_imag.T):
-            energy_loss[:,i] = self.energy_loss_function(diel, energyBins)
+            energy_loss[:,i] = self.energy_loss_function(diel, energy=energyBins, background_permittivity=background_permittivity)
 
         energy_loss = energy_loss.reshape((energy_shape,)+axes_shape)
 
         return energy_loss
+
+    def calculate_dielectric_real(self, dielectric_imag, energyBins, beta=14, sigma=1, background_permittivity=0):
+        """ Calculate real dielectric function for a spectrum image """
+
+        axes_shape = dielectric_imag.shape[1:]
+        energy_shape = dielectric_imag.shape[0]
+
+        flat_axes = np.zeros(axes_shape).flatten().shape
+
+        dielectric_imag = dielectric_imag.reshape((energy_shape,)+flat_axes)        
+        diel_real = np.zeros((energy_shape,)+flat_axes)
+
+        for i, diel_imag in enumerate(dielectric_imag.T):
+            diel_real[:,i] = self.kk_imag_to_real(diel_imag, energy=energyBins, beta=beta, sigma=sigma, background_permittivity=background_permittivity)
+
+        diel_real = diel_real.reshape((energy_shape,)+axes_shape)
+
+        return diel_real
 
 
     def calculate_dielectric_imag_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
@@ -557,6 +575,14 @@ class EELS:
         
         :returns: the real dielectric function along the energy axis
         """
+        
+        # Extend energy axis to zero if needed
+        dE = (energy[1]-energy[0])
+        n = int(energy[0]/dE)
+
+        low_energy = np.linspace(energy[0]-dE*n,energy[0]-dE,n)
+        energy = np.hstack([low_energy,energy])
+        imag = np.hstack([np.zeros((n,)),imag])
 
         half_index = imag.shape[0]
 
@@ -568,20 +594,31 @@ class EELS:
         
         window = kaiser(imag.shape[0],beta)
         
-        return hilbert(imag*window*inverse_gauss)[half_index:]+background_permittivity
+        return hilbert(imag*window*inverse_gauss)[half_index+n:]+background_permittivity
 
-    def energy_loss_function(self, imag, energy):
+    def energy_loss_function(self, imag, real=None, energy=None, background_permittivity=0):
         """ Calculated the full energy loss function Im[-eps**-1] from the imaginary dielectric funtion
         :type  imag: numpy array
         :param imag: the imaginary dielectric function along an energy axis
         
+        :type  real: numpy array
+        :param real: the real dielectric function along an energy axis, if None it will be computed
+
         :type  energy: numpy array
         :param energy: the energy axis of the imaginary dielectric function
+
+        :type  background_permittivity: float
+        :param background_permittivity: the background permittivity for real dielectrid function
         
         :returns: the energy loss function along the enery axis
         """
 
-        real = self.kk_imag_to_real(imag, energy)
+        if isinstance(real, type(None)):
+            if not isinstance(energy, type(None)):        
+                real = self.kk_imag_to_real(imag, energy, background_permittivity=background_permittivity)
+            else:
+                _logger.warning("Neither real or energy are given, cannot compute full energy loss function.")
+
 
         return imag/(real**2+imag**2)
 
