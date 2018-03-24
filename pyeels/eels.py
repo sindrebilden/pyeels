@@ -387,7 +387,7 @@ class EELS:
         return diel_real
 
 
-    def calculate_dielectric_imag_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+    def calculate_dielectric_imag_multiproc(self, energyBins, bands=(None,None), incident_energy=None, fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent dielectric function of the system, using multiple processes
         
         :type  energyBins: ndarray
@@ -411,6 +411,12 @@ class EELS:
         :returns: An individual numpy ndarray or list of arrays, see :param: compact for info
         """
 
+        if incident_energy:
+            self.set_incident_energy(incident_energy)
+        else:
+            if not self.incident_energy:
+                _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
+                self.set_incident_energy(60e3)
 
         polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
 
@@ -443,7 +449,7 @@ class EELS:
             return None
 
 
-    def calculate_polarization_multiproc(self, energyBins, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, compact=True):
+    def calculate_polarization_multiproc(self, energyBins, bands=(None,None), incident_energy=None, fermienergy=None, temperature=None, max_cpu=None, compact=True):
         """ Calculate the momentum dependent polarization matrix of the system, using multiple processes
         
         :type  energyBins: ndarray
@@ -466,6 +472,14 @@ class EELS:
         
         :returns: An individual numpy ndarray or list of arrays, see :param: compact for info
         """
+
+        if incident_energy:
+            self.set_incident_energy(incident_energy)
+        else:
+            if not self.incident_energy:
+                _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
+                self.set_incident_energy(60e3)
+
 
         if temperature:
             self.temperature = temperature
