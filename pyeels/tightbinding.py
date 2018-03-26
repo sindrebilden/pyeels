@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import spglib as spg
 import pythtb as tb
 import numpy as np
+from scipy.optimize import minimize
 import logging
+from matplotlib import colors
 _logger = logging.getLogger(__name__)
 
 class TightBinding:
@@ -80,7 +82,7 @@ class TightBinding:
 
 
     
-    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, ax=None):
+    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, markersize=10, markeach=None, ax=None):
         """ Plot a representation of the band structure
         
         :type  ylim: tuple, list
@@ -101,7 +103,19 @@ class TightBinding:
         # call function k_path to construct the actual path
         (k_vec,k_dist,k_node)=self.model.k_path(path,301,report=False)
 
-        evals = self.model.solve_all(k_vec)
+
+        if (color=='point_type') or (color=='band_type'):
+            evals, evec = self.model.solve_all(k_vec, True)
+
+            darkblue = colors.to_rgb('deepskyblue')
+            lightblue = colors.to_rgb('lightskyblue')
+            darkred = colors.to_rgb('crimson')
+            lightred = colors.to_rgb('salmon')
+
+            type_colors = [darkblue, lightblue, lightblue, lightblue, darkblue, lightblue, lightblue, lightblue, darkred, lightred, lightred, lightred, darkred, lightred, lightred, lightred]
+
+        else:
+            evals = self.model.solve_all(k_vec)
         
         fig = None
         if not ax:
@@ -124,8 +138,21 @@ class TightBinding:
             else:
                 ax.axvline(x=k_node[n],linewidth=0.5, color='k')
     
-        for band in evals[bands[0]:bands[1]]:
-            ax.plot(k_dist, band, color=color, linestyle=linestyle, marker=marker)
+
+
+        if (color=='point_type') or (color=='band_type'):
+            """ If coloring by type, the color is calculated by the wave nature of the points/bands"""
+
+            for band, wave in zip(evals[bands[0]:bands[1]],evec[bands[0]:bands[1]]):
+                if (color=='band_type'):  
+                    ax.plot(k_dist, band, color=np.dot(abs((wave**2)).mean(axis=0).round(2),type_colors), linestyle=linestyle, marker=marker)
+
+                elif (color=='point_type'):
+                    for k, e, w in zip(k_dist, band, wave):
+                        ax.scatter(k,e, color=np.dot(abs((w**2).round(2)),type_colors),s=markersize**2)
+        else:
+            for band in evals[bands[0]:bands[1]]:
+                ax.plot(k_dist, band, color=color, linestyle=linestyle, marker=marker, markersize=markersize, markeach=markeach)
 
         if not fig:
             return ax
@@ -160,7 +187,112 @@ class WurtziteSP3(TightBinding):
     Model designed by 'Kobayashi et Al. 1983 <https://link.aps.org/doi/10.1103/PhysRevB.28.935>'"""
     def __init__(self, crystal):
         TightBinding.__init__(self, crystal)
+
+        self.update_onsites()
+
+
+
+    def get_parameters(self):
+        """ Get a list of the parameters of the wurtzite model
+
+        :returns: list of [Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc, Vss, Vxx, Vxy, Vsapc, Vpasc]
+        """
+        return self.get_onsites() + self.get_hopping_parameters()
+
+    def set_parameters(self, Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc, Vss, Vxx, Vxy, Vsapc, Vpasc):
+        """ Set all parameters of the wurtzite model
+
+        :type   Esa: float
+        :param  Esa: the onsite energy of s  of the anion
+        :type  Epxa: float
+        :param Epxa: the onsite energy of p of the anion
+        :type  Epya: float
+        :param Epya: the onsite energy of p of the anion
+        :type  Epza: float
+        :param Epza: the onsite energy of p of the anion
+
+        :type   Esc: float
+        :param  Esc: the onsite energy of s  of the cation
+        :type  Epxc: float
+        :param Epxc: the onsite energy of p of the cation
+        :type  Epyc: float
+        :param Epyc:  the onsite energy of p of the cation
+        :type  Epzc: float
+        :param Epzc: the onsite energy of p of the cation
+
+        :type  Vss: float
+        :param Vss: The hopping parameter from s to s
+        :type  Vxx: float
+        :param Vxx: The hopping parameter from px of the anion to px of the cation
+        :type  Vxy: float
+        :param Vxy: The hopping parameter from px of the anion to py of the cation
+        :type  Vsapc: float
+        :param Vsapc: The hopping parameter from s of the anion to p of the cation
+        :type  Vpasc: float
+        :param Vpasc: The hopping parameter from p of the anion to s of the cation
+        """
+
+        self.set_onsites(Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc)
+        self.set_hopping_parameters(Vss, Vxx, Vxy, Vsapc, Vpasc)
         
+    def get_onsites(self):
+        """ Get a list of the onset energies of the wurtzite model
+
+        :returns: list of [Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc]
+        """
+
+        ani = [0, 0, 0, 0]
+        cat = [0, 0, 0, 0]
+
+        onsites = [ani, ani, cat, cat]
+
+        for i, initial_atom in enumerate(self._crystal.atoms):
+            for io, initial_orbital in enumerate(initial_atom.orbitals):
+                onsites[i][io] = initial_orbital.onsite
+
+        return ani+cat
+
+
+    def set_onsites(self, Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc):
+        """  Set all onsite energies in the wurtzite model and update them afterwards
+        :type   Esa: float
+        :param  Esa: the onsite energy of s  of the anion
+        :type  Epxa: float
+        :param Epxa: the onsite energy of p of the anion
+        :type  Epya: float
+        :param Epya: the onsite energy of p of the anion
+        :type  Epza: float
+        :param Epza: the onsite energy of p of the anion
+
+        :type   Esc: float
+        :param  Esc: the onsite energy of s  of the cation
+        :type  Epxc: float
+        :param Epxc: the onsite energy of p of the cation
+        :type  Epyc: float
+        :param Epyc:  the onsite energy of p of the cation
+        :type  Epzc: float
+        :param Epzc: the onsite energy of p of the cation
+         """
+
+        ani = [Esa, Epxa, Epya, Epza]
+        cat = [Esc, Epxc, Epyc, Epzc]
+
+        onsites = [ani, ani, cat, cat]
+
+        for i, initial_atom in enumerate(self._crystal.atoms):
+            for io, initial_orbital in enumerate(initial_atom.orbitals):
+                initial_orbital.onsite = onsites[i][io]
+
+        self.update_onsites()
+
+    def update_onsites(self):
+        """ Update the onsite parameters from the orbital objects"""
+        for i, initial_atom in enumerate(self._crystal.atoms):
+            for io, initial_orbital in enumerate(initial_atom.orbitals):
+                self.model.set_onsite(initial_orbital.onsite, ind_i=(i*len(self._crystal.atoms)+io), mode='reset')
+        
+
+
     def get_hopping_parameters(self):
         """ Get a list of all hopping parameters in the model
         :returns: Vss, Vxx, Vxy, Vsapc, Vpasc. See :func:'set_hopping_parameters' for info."""
@@ -216,14 +348,6 @@ class WurtziteSP3(TightBinding):
         self._UHxz =  2*np.sqrt(2)/9 * (self._UVzz-self._UVxx)
 
         """##############################################################"""
-
-        """  ONSITE  """
-
-        for i, initial_atom in enumerate(self._crystal.atoms):
-            for io, initial_orbital in enumerate(initial_atom.orbitals):
-                self.model.set_onsite(initial_orbital.onsite, ind_i=(i*len(self._crystal.atoms)+io), mode='reset')
-        
-
 
         """  HOPPING  """
                                                  
@@ -391,3 +515,93 @@ class WurtziteSP3(TightBinding):
     
     def __repr__(self):
         return "Wursite SP3 Tight binding model for: \n \n {} \n".format(self._crystal)
+
+class TbFitter():
+    """ A Tight Binding Fitting class 
+    Based on a class written by Lars Mustad
+    """
+    mu = 0
+    T = 1
+    def __init__(self, TB_model, fitting_k, fitting_E, band_range=(0,-1), monitor=False, tolerance=None):
+        """ Create instance of the fitting class
+        
+        :type  mode: TightBinding instance
+        :param mode: the Tight Binding model
+        :type  fitting_k: np.ndarray
+        :param fitting_k: the k-points for fitting reference
+        :type  fitting_E: np.ndarray
+        :param fitting_E: the reference energies at the k-points
+        :type  band_range: tuple
+        :param band_range: lowest and highest band index in a tuple
+        :type  monitor: boolean
+        :param monitor: If true, the standard deviation is printed for each iteration
+        :type  tolerance: float
+        :param tolerance: the highest standard deviation accepted
+        """
+        self.TB_model = TB_model
+        self.monitor = monitor
+        self.fitting_k = fitting_k
+        self.fitting_E = fitting_E
+        self.tolerance = tolerance
+        self.band_range = band_range
+        
+    def fit(self, mu=None, T=None, monitor=None):
+        """ Perform the fitting, the optimized fitting parameters is left in the TB-model
+        
+        :type  mu: float
+        :param mu: the center energy of the weighting function 
+        :type   T: float
+        :param  T: the range factor of the weighting function
+        :type  monitor: boolean
+        :param monitor: If true, the standard deviation is printed for each iteration
+
+        :returns: passes the result of the minimize() function
+        """
+        if mu:
+            self.mu = mu
+        if T:
+            self.T = T
+            
+        if not isinstance(monitor,type(None)):
+            self.monitor = monitor
+        initial_args = self.TB_model.get_parameters()
+        
+        return minimize(self.fit_function, initial_args, tol=self.tolerance)
+        
+    def fit_function(self, args):
+        """ Fitting function passed to the minimize() function in self.fit()        
+
+        :type  args: tuple
+        :param args: the arguments of the Tight Binding model
+        """
+        Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc, Vss, Vxx, Vxy, Vsapc, Vpasc = args
+        self.TB_model.set_parameters(Esa, Epxa, Epya, Epza, Esc, Epxc, Epyc, Epzc, Vss, Vxx, Vxy, Vsapc, Vpasc)
+
+        E =self.TB_model.model.solve_all(self.fitting_k)[self.band_range[0]:self.band_range[1]]
+    
+        
+        diff=self.fitting_E-E
+
+        diff=abs(diff)**2
+        
+        val=sum((diff*self.weightfun(self.fitting_E,E)).ravel())
+        
+        if self.monitor:
+            print(val)
+            
+        self.lastval=val
+        self.weightsum=sum((self.weightfun(self.fitting_E,E)).ravel())
+        return val
+    
+    def weightfun(self,E_ref,E_calc):
+        """ A weight function for reference and calculated energies 
+        
+        :type   E_ref: np.ndarray
+        :param  E_ref: the reference energies
+
+        :type  E_calc: np.ndarray
+        :param E_calc: the calculated energies
+        """
+        w_ref=1./np.cosh((E_ref-self.mu)/self.T)**2/self.T/8
+        w_calc=1./np.cosh((E_calc-self.mu)/self.T)**2/self.T/8
+        return w_ref+w_calc

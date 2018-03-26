@@ -223,7 +223,10 @@ class EELS:
         :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
         """
 
-        DOS = np.zeros(self.crystal.brillouinzone.bands[0].shape)
+        raise NotImplementedError
+
+        """
+        DOS = np.zeros(self.crystal.brillouinzone.bands[0].energies.shape)
 
         for initial_band in self.crystal.brillouinzone.bands:
             for final_band in self.crystal.brillouinzone.bands:
@@ -232,7 +235,7 @@ class EELS:
                     DOS += final_band.energies-initial_band.energies
                     
         return DOS
-
+        """
 
     def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, background_permittivity=0, max_cpu=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
@@ -488,7 +491,7 @@ class EELS:
 
         self.energyBins = energyBins
 
-        energybands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
+        energybands = self.crystal._crystal.brillouinzone.bands[bands[0]:bands[1]]
 
         self._transitions = []
         for i, initial in enumerate(energybands):
