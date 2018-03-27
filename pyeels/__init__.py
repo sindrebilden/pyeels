@@ -7,7 +7,7 @@ from pyeels.crystal import Crystal
 from pyeels.band import Band
 from pyeels.brillouinzone import BrillouinZone
 
-from pyeels.tightbinding import TightBinding
+from pyeels.tightbinding import TightBinding, TbFitter
 from pyeels.parabolicband import ParabolicBand
 from pyeels.nonparabolicband import NonParabolicBand
 

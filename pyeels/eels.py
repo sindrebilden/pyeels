@@ -22,6 +22,7 @@ class EELS:
     
     def __init__(self, crystal, name=None):
         self.crystal = crystal
+        self.max_cpu = 1
 
         self.set_incident_energy(60e3)
         
@@ -223,7 +224,10 @@ class EELS:
         :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
         """
 
-        DOS = np.zeros(self.crystal.brillouinzone.bands[0].shape)
+        raise NotImplementedError
+
+        """
+        DOS = np.zeros(self.crystal.brillouinzone.bands[0].energies.shape)
 
         for initial_band in self.crystal.brillouinzone.bands:
             for final_band in self.crystal.brillouinzone.bands:
@@ -232,7 +236,7 @@ class EELS:
                     DOS += final_band.energies-initial_band.energies
                     
         return DOS
-
+        """
 
     def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, background_permittivity=0, max_cpu=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
@@ -262,6 +266,7 @@ class EELS:
         """
 
 
+
         if incident_energy:
             self.set_incident_energy(incident_energy)
         else:
@@ -269,7 +274,23 @@ class EELS:
                 _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
                 self.set_incident_energy(60e3)
 
-        dielectric_imag = self.calculate_dielectric_imag_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact=compact)
+        if not (isinstance(bands[0],type(None)) and isinstance(bands[1],type(None))):
+            self.bands = bands
+
+        if temperature:
+            self.temperature = temperature
+
+        if fermienergy:
+            self.fermienergy = fermienergy
+
+        if max_cpu:
+            self.max_cpu = max_cpu
+
+        if background_permittivity:
+            self.background_permittivity = background_permittivity
+
+
+        dielectric_imag = self.calculate_dielectric_imag_multiproc(energyBins=energyBins, compact=compact)
 
         energy_loss = []
         if not isinstance(dielectric_imag, type(None)):            
@@ -411,6 +432,8 @@ class EELS:
         :returns: An individual numpy ndarray or list of arrays, see :param: compact for info
         """
 
+
+
         if incident_energy:
             self.set_incident_energy(incident_energy)
         else:
@@ -418,7 +441,20 @@ class EELS:
                 _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
                 self.set_incident_energy(60e3)
 
-        polarizations = self.calculate_polarization_multiproc(energyBins, bands, fermienergy, temperature, max_cpu, compact)
+        if not (isinstance(bands[0],type(None)) and isinstance(bands[1],type(None))):
+            self.bands = bands
+            
+        if temperature:
+            self.temperature = temperature
+
+        if fermienergy:
+            self.fermienergy = fermienergy
+
+        if max_cpu:
+            self.max_cpu = max_cpu
+
+
+        polarizations = self.calculate_polarization_multiproc(energyBins=energyBins, compact=compact)
 
         if not isinstance(polarizations, type(None)):           
             weights = self.signal_weights()*(4*np.pi*self._E_SQUARED)/self.incident_k**2
@@ -480,15 +516,25 @@ class EELS:
                 _logger.warning("No acceleration energy found, use set_incident_energy() for this. Using 60keV.")
                 self.set_incident_energy(60e3)
 
-
+        if not (isinstance(bands[0],type(None)) and isinstance(bands[1],type(None))):
+            self.bands = bands
+            
         if temperature:
             self.temperature = temperature
+
         if fermienergy:
             self.fermienergy = fermienergy
 
+        if max_cpu:
+            self.max_cpu = max_cpu
+
         self.energyBins = energyBins
 
-        energybands = self.crystal.brillouinzone.bands[bands[0]:bands[1]]
+
+        print(self.bands)
+
+        energybands = self.crystal.brillouinzone.bands[self.bands[0]:self.bands[1]]
+        print(len(energybands))
 
         self._transitions = []
         for i, initial in enumerate(energybands):
@@ -497,13 +543,14 @@ class EELS:
 
                 # Check if bands lay below or above fermi distribution interval. 
                 # Interval is estimated to temperature/500, this corresponds to approx. 10th digit accuracy
-                if temperature != 0:
-                    if initial.energy_min() < fermienergy-temperature/500 and final.energy_max() > fermienergy+temperature/500:
+                if self.temperature != 0:
+                    print("T neq 0")
+                    if initial.energy_min() < self.fermienergy-self.temperature/500 and final.energy_max() > self.fermienergy+self.temperature/500:
                         self._transitions.append((i, f, initial, final))
                 else:
-                    if initial.energy_min() < fermienergy and final.energy_max() > fermienergy:
+                    if initial.energy_min() < self.fermienergy and final.energy_max() > self.fermienergy:
                         self._transitions.append((i, f, initial, final))
-
+        print(len(self._transitions))
         if not max_cpu:
             max_cpu = cpu_count()
 
@@ -555,7 +602,7 @@ class EELS:
         k_weights = self.crystal.brillouinzone.mesh[0]*self.crystal.brillouinzone.mesh[1]*self.crystal.brillouinzone.mesh[2];      
 
         return calculate_spectrum(
-            self.bins,
+            self.crystal.brillouinzone.mesh,
             self.crystal.brillouinzone.lattice, 
             initial_band.k_grid,
             np.stack(energyBands, axis=1),  
