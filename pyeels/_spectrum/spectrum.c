@@ -73,7 +73,6 @@ calculate_momentum_squared (PyObject *dummy, PyObject *args)
 
                     temp += sub_temp*sub_temp; //x^2
                 }
-                printf("\n");
                 for (int e = 0; e < dims[0]; e++){  
                     EELS[e][i][j][k] = temp;
 
