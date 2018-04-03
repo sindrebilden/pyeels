@@ -70,7 +70,7 @@ class NonParabolicBand:
 
         return energies
         
-    def _calculate_non_parabolic_periodic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), correction_factor=None):
+    def _calculate_non_parabolic_periodic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), wave=np.array([0,1]), correction_factor=None):
         """ Calculate energy of non parabolic band in k-space suggested by T. Pisarkiewicz, with periodic boundary conditions in the Brillouin Zone
         
         :type  energy_offset: float
@@ -98,11 +98,12 @@ class NonParabolicBand:
                     k_center = k_center_initial+k_shifts[dim]
                 energies = np.minimum(energies,self._calculate_non_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, correction_factor=correction_factor))
         
-        waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=1)
+
+        waves = np.ones(energies.shape+(2,))*wave
         
         return energies, waves
     
-    def set_non_parabolic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), correction_factor=None):
+    def set_non_parabolic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), wave=np.array([0,1]), correction_factor=None):
         """ Calculate bands and place as a band object in crystal 
         
         :type  energy_offset: float
@@ -115,7 +116,7 @@ class NonParabolicBand:
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
 
-        energies, waves = self._calculate_non_parabolic_periodic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, correction_factor=correction_factor)
+        energies, waves = self._calculate_non_parabolic_periodic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, wave=wave, correction_factor=correction_factor)
         self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=energies, waves=waves))
         
 

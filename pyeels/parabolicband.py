@@ -51,7 +51,7 @@ class ParabolicBand:
         return energy_offset+(self._HBAR_C**2/(2*self._M_E))*((self._k_grid[:,0]-k_center[0])**2/effective_mass[0]\
                             +(self._k_grid[:,1]-k_center[1])**2/effective_mass[1]+(self._k_grid[:,2]-k_center[2])**2/effective_mass[2])
 
-    def _calculate_parabolic_periodic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,))):
+    def _calculate_parabolic_periodic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), wave=np.array([0,1])):
         """ Calculate energy of parabolic band in k-space with periodic boundary conditions in the Brillouin Zone
         
         :type  energy_offset: float
@@ -79,11 +79,13 @@ class ParabolicBand:
                     k_center = k_center_initial+k_shifts[dim]
                 energies = np.minimum(energies,self._calculate_parabolic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center))
         
-        waves = np.stack([np.zeros(energies.shape),np.ones(energies.shape)], axis=1)
+        
+
+        waves = np.ones(energies.shape+(2,))*wave
         
         return energies, waves
     
-    def set_parabolic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,))):
+    def set_parabolic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), wave=np.array([0,1])):
         """ Calculate bands and place as a band object in crystal 
         
         :type  energy_offset: float
@@ -95,7 +97,7 @@ class ParabolicBand:
         :type  k_center: ndarray
         :param k_center: the center of the band in reciprocal space (within the brillouin zone) [k0_a, k0_b, k0_c]
         """
-        energies, waves = self._calculate_parabolic_periodic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center)
+        energies, waves = self._calculate_parabolic_periodic(energy_offset=energy_offset, effective_mass=effective_mass, k_center=k_center, wave=wave)
         self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=energies, waves=waves))
         
 
