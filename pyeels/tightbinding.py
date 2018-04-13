@@ -1,4 +1,5 @@
 from pyeels.crystal import Crystal
+from pyeels.atom import Atom
 from pyeels.band import Band
 import matplotlib.pyplot as plt
 import spglib as spg
@@ -6,7 +7,7 @@ import pythtb as tb
 import numpy as np
 from scipy.optimize import minimize
 import logging
-from matplotlib import colors
+from matplotlib.colors import to_rgb, hsv_to_rgb, rgb_to_hsv
 _logger = logging.getLogger(__name__)
 
 class TightBinding:
@@ -22,13 +23,22 @@ class TightBinding:
         self._crystal.brillouinzone.band_model = "Tight Binding"
         self._spg = (crystal.lattice, crystal.get_atom_positons(), crystal.get_atom_numbers())
         
-        self._orbital_positons = []
-        for atom in crystal.atoms:
-            for orbital in atom.orbitals:
-                self._orbital_positons.append(atom.position)        
         
-        self.setGrid()
-        self.model = tb.tb_model(3,3,self._crystal.lattice, self._orbital_positons)
+        if not hasattr(self, 'wannier'):
+            self._orbital_positons = []
+            for atom in crystal.atoms:
+                for orbital in atom.orbitals:
+                    self._orbital_positons.append(atom.position)        
+            
+            self.setGrid()
+
+            self.model = tb.tb_model(3,3,self._crystal.lattice, self._orbital_positons)
+
+
+
+    @classmethod
+    def check_class(cls):
+        return cls.__bases__ == TightBinding.__bases__
         
     def setGrid(self, mesh=3):
         """ Define the resolution of the reciprocal space
@@ -79,10 +89,65 @@ class TightBinding:
         
         for i, band in enumerate(energies):
             self._crystal.brillouinzone.add_band(Band(k_grid=self._k_grid, energies=band, waves=waves[i]))
-
-
     
-    def bandstructure(self, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, markersize=10, markevery=None, ax=None):
+
+    def set_orbital_colors(self, orbitals=None, colors=None):
+        """ Create a set of colors representing the orbital bais set
+        
+        :type  orbitals: list
+        :param orbitals: a list of orbital symbols/numbers, identical symbols/numbers get identical color
+
+        :type  colors: list
+        :param colors: a list of chosen colors, if left None a set will be generated
+        """
+        
+        if isinstance(orbitals, type(None)):
+            orbitals = list(range(len(self._orbital_positons)))
+            numbers = orbitals
+            symbols = []
+            for orbital in orbitals:
+                symbols.append('Orbital_{}'.format(orbital))
+
+        else:
+            symbols = []
+            for orbital in orbitals:
+                if not orbital in symbols:
+                    symbols.append(orbital)
+
+            numbers = []
+            for i, orbital in enumerate(orbitals):
+                for j, symbol in enumerate(symbols):
+                    if orbital is symbol:
+                        numbers.append(j)
+
+
+        if isinstance(colors, type(None)):
+            unique_colors = []
+            for i in range(0,len(symbols)):
+                print((len(symbols)-i)/(len(symbols)))
+                unique_colors.append(((len(symbols)-i)/(len(symbols)) , 1, 1 ))
+                
+            colors = []
+            for number in numbers:
+                colors.append(hsv_to_rgb(unique_colors[number]))
+        else:
+            unique_colors = colors
+            if len(colors) < len(symbols):
+                raise ValueError("The length of colors is shorter than the number of unique symbos")
+            else:
+                colors = []
+                for number in numbers:
+                    colors.append(to_rgb(unique_colors[number]))
+        
+        self.type_symbols = symbols
+        self.type_numbers = numbers
+        self.type_colors = colors = np.asarray(colors)
+
+        return symbols, numbers,  colors
+    
+        
+
+    def bandstructure(self, path, labels, point_density=301, ylim=(None,None),  bands=(None,None), color=None, linestyle=None, marker=None, markersize=10, markevery=None, ax=None):
         """ Plot a representation of the band structure
         
         :type  ylim: tuple, list
@@ -96,24 +161,19 @@ class TightBinding:
         #labels = path['explicit_kpoints_labels'][:5]
 
         """ manual lines"""
-        path=[[0.0,0.0,0.5],[0.5,0.0,0.5],[0.5,0,0.0],[0.0,0.0,0.0],[0,0,0.5],[2./3.,1./3.,0.5],[2./3.,1./3.,0.0],[0,0,0]]
-        label=(r'$A $',      r'$L$',       r'$M$',   r'$\Gamma$', r'$A $', r'$H$',  r'$K$',r'$\Gamma $')
+#        path=[[0.0,0.0,0.5],[0.5,0.0,0.5],[0.5,0,0.0],[0.0,0.0,0.0],[0,0,0.5],[2./3.,1./3.,0.5],[2./3.,1./3.,0.0],[0,0,0]]
+#        label=(r'$A $',      r'$L$',       r'$M$',   r'$\Gamma$', r'$A $', r'$H$',  r'$K$',r'$\Gamma $')
 
         
         # call function k_path to construct the actual path
-        (k_vec,k_dist,k_node)=self.model.k_path(path,301,report=False)
-
+        (k_vec,k_dist,k_node)=self.model.k_path(path, point_density, report=False)
 
         if (color=='point_type') or (color=='band_type'):
             evals, evec = self.model.solve_all(k_vec, True)
 
-            darkblue = colors.to_rgb('deepskyblue')
-            lightblue = colors.to_rgb('lightskyblue')
-            darkred = colors.to_rgb('crimson')
-            lightred = colors.to_rgb('salmon')
-
-            type_colors = [darkblue, lightblue, lightblue, lightblue, darkblue, lightblue, lightblue, lightblue, darkred, lightred, lightred, lightred, darkred, lightred, lightred, lightred]
-
+            if not hasattr(self, 'type_colors'):
+                self.set_orbital_colors()
+            
         else:
             evals = self.model.solve_all(k_vec)
         
@@ -122,18 +182,18 @@ class TightBinding:
             fig, ax = plt.subplots(figsize=(8,6))
             fig.tight_layout()
 
-        ax.set_title("Bandstructure for Zno based on Kobayashi")
+        #ax.set_title("Bandstructure for Zno based on Kobayashi")
         ax.set_ylabel("Band energy")
 
         # specify horizontal axis details
         ax.set_xlim([0,k_node[-1]])
         # put tickmarks and labels at node positions
         ax.set_xticks(k_node)
-        ax.set_xticklabels(label)
+        ax.set_xticklabels(labels)
         # add vertical lines at node positions
 
         for n in range(len(k_node)):
-            if label[n] == r'$\Gamma$':
+            if labels[n] == r'$\Gamma$':
                 ax.axvline(x=k_node[n],linewidth=1, color='k')
             else:
                 ax.axvline(x=k_node[n],linewidth=0.5, color='k')
@@ -145,13 +205,13 @@ class TightBinding:
 
             for band, wave in zip(evals[bands[0]:bands[1]],evec[bands[0]:bands[1]]):
                 if (color=='band_type'):  
-                    rgb = np.dot(abs((wave**2)).mean(axis=0).round(2),type_colors)
-                    ax.plot(k_dist, band, color=np.minimum(maximum, rgb), linestyle=linestyle, marker=marker)
+                    rgb = np.dot((np.absolute(wave)**2).mean(axis=0).round(2),self.type_colors)
+                    ax.plot(k_dist, band, color=(np.minimum(maximum, rgb)), linestyle=linestyle, marker=marker)
 
                 elif (color=='point_type'):
                     for k, e, w in zip(k_dist, band, wave):
-                        rgb = np.dot(abs((w**2).round(2)),type_colors)
-                        ax.scatter(k,e, color=np.minimum(maximum, rgb), s=markersize**2)
+                        rgb = np.dot((np.absolute(w)**2).round(2),self.type_colors)
+                        ax.scatter(k,e, color=(np.minimum(maximum, rgb)), s=markersize**2)
         else:
             for band in evals[bands[0]:bands[1]]:
                 ax.plot(k_dist, band, color=color, linestyle=linestyle, marker=marker, markersize=markersize, markevery=markevery)
@@ -181,7 +241,73 @@ class TightBinding:
         return "Parabolic band model for: \n \n {} \n".format(self._crystal)
 
 
+class Wannier(TightBinding):
+    """ A wannier interface for the TightBinding class"""
 
+    def __init__(self, path, prefix, zero_level=0):
+        self.path = path
+        self.prefix = prefix
+        self.wannier = tb.w90(path, prefix)
+        self.zero_level = zero_level
+
+        self._orbital_positons = []
+        for orbital_position in self.wannier.red_cen:
+            self._orbital_positons.append(list(orbital_position))
+
+        TightBinding.__init__(self, self.create_crystal())       
+
+        self.set_model(zero_level=self.zero_level)
+
+    def set_model(self, zero_level=None, min_hopping_norm=0.01, max_distance=None, ignorable_imaginary_part=0.01):
+
+        if zero_level:
+            self.zero_level = zero_level
+
+        self.model = self.wannier.model(zero_energy=zero_level, min_hopping_norm=min_hopping_norm, max_distance=max_distance, ignorable_imaginary_part=ignorable_imaginary_part)
+
+
+    def create_crystal(self):
+
+        wannier_crystal = Crystal(self.wannier.lat)        
+
+        with open("{}{}_centres.xyz".format(self.path,self.prefix)) as file:
+            num_orbitals = int(file.readline())
+            #Skip orbitals
+            for i in range(0,num_orbitals+1):
+                file.readline()
+            
+            for line in file.readlines():
+                (atom, x,y,z) = line.strip('\n').split('       ')
+                
+                number = Atom._ATOMS.index(atom)
+
+                position = np.asarray([x,y,z]).astype(float)
+                position = np.dot(position,np.linalg.inv(self.wannier.lat))
+
+                wannier_crystal.add_atom(Atom(position=position, number=number))
+
+        return wannier_crystal
+
+    def shells(self):
+        """ Return all pair distances between the orbitals
+        Directly taken from PythTB wannier example
+
+        :returns: wannier shells
+        """
+        return self.wannier.shells()
+
+    def hoppings(self):
+        """ Plot hopping terms as a function of distance on a log scale 
+        Directly taken from PythTB wannier example
+
+        :returns: figure of hopping terms
+        """
+        (dist,ham) = wannier.dist_hop()
+        fig, ax = plt.subplots()
+        ax.scatter(dist,np.log(np.abs(ham)))
+        ax.set_xlabel("Distance (A)")
+        ax.set_ylabel(r"$\log H$ (eV)")
+        fig.tight_layout()
 
 
 class WurtziteSP3(TightBinding):
