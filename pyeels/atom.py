@@ -5,6 +5,8 @@ _logger = logging.getLogger(__name__)
 
 class Atom(object):
     """ Atom object hosting orbitals """
+    _ATOMS = ['None','H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar','K','Ca','Sc','Ti','V','Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','Ar','Se','Br','Kr']
+        
     def __init__(self, position=np.array([0, 0, 0]), number=0):
         """ Initialize an instance of atom
         
@@ -16,6 +18,7 @@ class Atom(object):
         """
         position = np.asarray(position)
         self.number = number
+        self.symbol = self._ATOMS[number]
         self.position = position
         self.orbitals = []
     
@@ -57,7 +60,7 @@ class Atom(object):
     def __repr__(self):
         """ Representation of the Atom object """
 
-        return "Atom with Z={} at {}".format(self.number, self.position)
+        return "{} at {}".format(self.symbol, self.position)
     
 class Oxygen(Atom):
     """ A special case of Atom designed for Oxygen"""
@@ -69,7 +72,7 @@ class Oxygen(Atom):
         self.add_orbital(Orbital(  4.142, "Py"))
     
     def __repr__(self):
-        return "Oxygen at {}".format(self.position)
+        return "O at {}".format(self.position)
     
 class Zinc(Atom):
     """ A special case of Atom designed for Zinc"""
@@ -82,7 +85,7 @@ class Zinc(Atom):
         self.add_orbital(Orbital( 12.368, "Py"))
         
     def __repr__(self):
-        return "Zinc at {}".format(self.position)
+        return "Zn at {}".format(self.position)
     
 
 class Gallium(Atom):
@@ -96,7 +99,7 @@ class Gallium(Atom):
         self.add_orbital(Orbital( 10.896, "Py"))
     
     def __repr__(self):
-        return "Gallium at {}".format(self.position)
+        return "Ga at {}".format(self.position)
     
 class Nitrogen(Atom):
     """ A special case of Atom designed for Nitrogen"""
@@ -109,4 +112,4 @@ class Nitrogen(Atom):
         self.add_orbital(Orbital(  0.005, "Py"))
         
     def __repr__(self):
-        return "Nitrogen at {}".format(self.position)   
+        return "N at {}".format(self.position)   
