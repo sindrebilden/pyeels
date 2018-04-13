@@ -28,7 +28,6 @@ class EELS:
 
         # A default smearing (eta) is set to 0.1 of the energy spacing
         self.smearing = 0.1 
-        self.adaptive_smearing = True 
         self.refractive_index = None
 
         self.set_incident_energy(60e3)
@@ -226,31 +225,7 @@ class EELS:
 
         return signal_total
 
-    def joint_density_of_states(self, bands=(None,None), fermienergy=None, compact=True):
-        """ Calculate the joint density of states for direct transitions
-            
-        :type  bands: tuple
-        :param bands: Tuple of start index and end index of the bands included from the band structure
-
-        :type  fermienergy: float
-        :param fermienergy: a spesific fermienergy in eV, if not defined the standard fermienergy is used
-        """
-
-        raise NotImplementedError
-
-        """
-        DOS = np.zeros(self.crystal.brillouinzone.bands[0].energies.shape)
-
-        for initial_band in self.crystal.brillouinzone.bands:
-            for final_band in self.crystal.brillouinzone.bands:
-                
-                if initial_band != final_band:
-                    DOS += final_band.energies-initial_band.energies
-                    
-        return DOS
-        """
-
-    def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, smearing=None, adaptive_smearing=None, refractive_index=None, compact=True):
+    def calculate_eels_multiproc(self, energyBins, incident_energy=None, bands=(None,None), fermienergy=None, temperature=None, max_cpu=None, smearing=None, refractive_index=None, compact=True):
         """ Calculate the momentum dependent scattering cross section of the system, using multiple processes
         
         :type  energyBins: ndarray
@@ -300,9 +275,6 @@ class EELS:
 
         if smearing:
             self.smearing = smearing
-
-        if isinstance(adaptive_smearing, bool):
-            self.adaptive_smearing = adaptive_smearing
 
         if refractive_index:
             self.refractive_index = refractive_index
@@ -372,7 +344,7 @@ class EELS:
         else:
             return None
 
-    def calculate_dielectric_multiproc(self, energyBins, bands=(None,None), incident_energy=None, fermienergy=None, temperature=None, max_cpu=None, smearing=None, adaptive_smearing=None, refractive_index=None, compact=True):
+    def calculate_dielectric_multiproc(self, energyBins, bands=(None,None), incident_energy=None, fermienergy=None, temperature=None, max_cpu=None, smearing=None, refractive_index=None, plasmon_energy=None, compact=True):
         """ Calculate the complex momentum dependent dielectric function of the system, using multiple processes
         
         :type  energyBins: ndarray
@@ -420,9 +392,6 @@ class EELS:
         if smearing:
             self.smearing = smearing
 
-        if isinstance(adaptive_smearing, bool):
-            self.adaptive_smearing = adaptive_smearing
-
         if refractive_index:
             self.refractive_index = refractive_index
 
@@ -465,10 +434,10 @@ class EELS:
             del(temp_energy)
 
             if compact:
-                dielectric_real = EELS.smear_data(data=polarizations, energy=self.energyBins, sigma=self.smearing, type='Real', adaptive=self.adaptive_smearing)
+                dielectric_real = EELS.smear_data(data=polarizations, energy=self.energyBins, sigma=self.smearing, type='Real')
                 dielectric_real = self._trim_edges(dielectric_real)
 
-                dielectric_imag = EELS.smear_data(data=polarizations, energy=self.energyBins, sigma=self.smearing, type='Imaginary', adaptive=self.adaptive_smearing)
+                dielectric_imag = EELS.smear_data(data=polarizations, energy=self.energyBins, sigma=self.smearing, type='Imaginary')
                 dielectric_imag = self._trim_edges(dielectric_imag)
 
                 del(polarizations)
@@ -485,8 +454,9 @@ class EELS:
 
                 dielectric = 1 + dielectric.real + 1j * dielectric.imag
                 if self.refractive_index:
-                    dielectric = self.normalize_dielectric(dielectric=dielectric, refractive_index=self.refractive_index)
-
+                    dielectric = self.normalize_dielectric_by_refractive_index(dielectric=dielectric, refractive_index=self.refractive_index)
+                elif plasmon_energy:
+                    dielectric = self.normalize_dielectric_by_valence(dielectric=dielectric, valence_electrons=self.valence_electrons, plasmon_energy=plasmon_energy)
                 self.dielectric = dielectric
                 return dielectric
 
@@ -515,7 +485,9 @@ class EELS:
 
                     dielectric = ( (1 + dielectric.real + 1j * dielectric.imag) )
                     if self.refractive_index:
-                        dielectric = self.normalize_dielectric(dielectric=dielectric, refractive_index=self.refractive_index)
+                        dielectric = self.normalize_dielectric_by_refractive_index(dielectric=dielectric, refractive_index=self.refractive_index)
+                    elif plasmon_energy:
+                        dielectric = self.normalize_dielectric_by_valence(dielectric=dielectric, valence_electrons=self.valence_electrons, plasmon_energy=plasmon_energy)
                 _logger.warning("Calculation of true dielectric function for individual bands is not correctly implemented. This is a temporary solution.")
 
                 self.dielectric = dielectrics
@@ -594,10 +566,10 @@ class EELS:
             #Sum up valence electrons for normalization purpuse in energy loss function
             if self.temperature != 0:
                 if initial.energy_min() < self.fermienergy-self.temperature/500:
-                    self.valence_electrons +=1
+                    self.valence_electrons +=2
             else:
                 if initial.energy_min() < self.fermienergy:
-                    self.valence_electrons +=1
+                    self.valence_electrons +=2
                         
         if not max_cpu:
             max_cpu = cpu_count()
@@ -725,7 +697,7 @@ class EELS:
         return np.nan_to_num(weights)
 
 
-    def normalize_dielectric(self, dielectric, refractive_index=1):
+    def normalize_dielectric_by_refractive_index(self, dielectric, refractive_index=1):
         """ Normalize the dielectric function eps(q,w) to a known refractive index 
 
         :type  dielectric: np.ndarray
@@ -779,14 +751,17 @@ class EELS:
         else:
             raise ValueError("The dielectric matrix does not match the energy dimension")
 
-    def normalize_energy_loss_function(self, loss_function, valence_electrons=None):
-        """ Normalize the energy loss function to the valence electron density 
+    def normalize_dielectric_by_valence(self, dielectric, valence_electrons=None, plasmon_energy=None):
+        """ Normalize the dielectric function to the valence electron density 
 
-        :type  loss_function: np.ndarray
-        :param loss_function: the loss function to be normalized
+        :type  dielectric: np.ndarray
+        :param dielectric: the loss function to be normalized
 
         :type  valence_electrons: float
         :param valence_electrons: the number of valence electrons
+
+        :type  plasmon_energy: float
+        :param plasmon_energy: the plasmon energy if known
 
         :returns: the normalized loss function
         """
@@ -794,20 +769,44 @@ class EELS:
         if not valence_electrons:
             valence_electrons = self.valence_electrons
         
-        if not loss_function.shape[-1] == self.energyBins.shape[0]:
-            loss_function.T
-            
-        if loss_function.shape[-1] == self.energyBins.shape[0]:
-            energy_step = self.energyBins[1]-self.energyBins[0]
+        transposed = False
+        if not dielectric.shape[-1] == self.energyBins.shape[0]:
+            dielectric = dielectric.T
+            transposed = True
+
+        if dielectric.shape[-1] == self.energyBins.shape[0]:
+#            energy_step = self.energyBins[1]-self.energyBins[0]
+
+            dielectric_imag = dielectric.imag
+            dielectric_real = dielectric.real
 
             # rewrite to integral from scipy?
-            integrated = (loss_function*self.energyBins)*energy_step
+            integrated = np.trapz(y=dielectric_imag*self.energyBins, x=self.energyBins, axis=-1)
 
-            total = (np.pi*self._E_SQUARED*valence_electrons)/(2*self._MC2*self.crystal.volume)
+            print("integral is {}".format(integrated))
 
-            return (((integrated/self.energyBins).T/(integrated.sum(axis=-1)))*total).T
+            integrated[integrated[:]==0] = np.nan
+
+
+            if plasmon_energy:
+                plasmon_energy_squared = plasmon_energy**2
+            else:
+                plasmon_energy_squared = (4*np.pi*self._E_SQUARED*self._HBARC**2*valence_electrons)/(self._MC2*self.crystal.volume)
+
+            scale = np.pi*plasmon_energy/(2*integrated)
+
+            scale = np.nan_to_num(scale)
+
+            print("scale is {}".format(scale))
+
+            dielectric = (((dielectric_real.T-1)*scale)+1 + 1j*dielectric_imag.T*scale).T
+
+            if transposed:
+                return dielectric.T
+            else:
+                return dielectric
         else:
-            raise ValueError("The shape of the loss function does not match self.energyBins")
+            raise ValueError("The shape of the dielectric function does not match self.energyBins")
 
     def map_onset(self, data):
         """ Create an onset map from the given n-dimensional data, the last axis must represent energy
@@ -825,8 +824,8 @@ class EELS:
         onsets = np.zeros(data.shape[:-1])
         
         
-        for i in range(len(s.shape[-1])):
-            above = (s[...,i]>0)
+        for i in range(data.shape[-1]):
+            above = (data[...,i]>0)
             onsets += above*energy[i]*free_onsets
             
             free_onsets *= 1-above
@@ -854,9 +853,9 @@ class EELS:
 
         if data.shape[-1] == self.energyBins.shape[0]:
 
-            onset = self.map_onset(self.polarization)
+            onset = self.map_onset(self.polarization.T)
 
-            energy = np.zeros(data.T.shape)
+            energy = np.zeros(data.shape)
             energy[...,:] = self.energyBins
             mask = (energy[:,...].T>onset).T
 
@@ -890,7 +889,7 @@ class EELS:
 
     # Signal handeling
     @classmethod
-    def _gauss(cls, sigma, eRange, adaptive=True):
+    def _gauss(cls, sigma, eRange):
         """ Creates a gauss to smear data
         :type  sigma: float
         :param sigma: the sigmal value of the gauss
@@ -898,24 +897,20 @@ class EELS:
         :type  eRange: ndarray
         :param eRange: an array of energy values 
 
-        :type  adaptive: bool
-        :param adaptive: Sigma scales with dE when left True
-
         :returns: an array with a gaussian in energy space
         """
         dE = eRange[1]-eRange[0]
-        if adaptive:
-            sigma *= dE
-        gx = np.arange(-3*sigma,3*sigma, dE)
+
+        gx = np.arange(-eRange[-1],eRange[-1], dE)
         gaussian = np.exp(-0.5*(gx/sigma)**2)
-        gaussian = gaussian/np.sum(gaussian)
+        gaussian = gaussian/gaussian.sum()
         
         gauss =np.zeros((1,1,1,len(gaussian)))
         gauss[0,0,0,:] = gaussian
         return gauss
 
     @classmethod
-    def _imaginary(cls, sigma, eRange, adaptive=True):
+    def _imaginary(cls, sigma, eRange):
         """ Creates an weight function to the imaginary part of dielectric function to smear data
         :type  sigma: float
         :param sigma: the sigmal value of the weight function
@@ -923,17 +918,11 @@ class EELS:
         :type  eRange: ndarray
         :param eRange: an array of energy values 
 
-        :type  adaptive: bool
-        :param adaptive: Sigma scales with dE when left True
-
         :returns: an array with an imaginary part weight function in energy space
         """
         dE = eRange[1]-eRange[0]
 
-        if adaptive:
-            sigma *= dE
-
-        tx = np.arange(-50*sigma,50*sigma, dE) #Limit for 4e-3 of max treshold
+        tx = np.arange(-eRange[-1],eRange[-1], dE) #-50*sigma,50*sigma
         weights = 1/(-tx-1j*sigma)
         imaginary = weights.imag/(np.abs(weights.imag).sum()*dE)
         
@@ -942,7 +931,7 @@ class EELS:
         return imag
 
     @classmethod
-    def _real(cls, sigma, eRange, adaptive=True):
+    def _real(cls, sigma, eRange):
         """ Creates an weight function to the real part of dielectric function to smear data
         :type  sigma: float
         :param sigma: the sigmal value of the weight function
@@ -950,17 +939,11 @@ class EELS:
         :type  eRange: ndarray
         :param eRange: an array of energy values 
 
-        :type  adaptive: bool
-        :param adaptive: Sigma scales with dE when left True
-
         :returns: an array with a real part weight function in energy space
         """
         dE = eRange[1]-eRange[0]
     
-        if adaptive:
-            sigma *= dE
-    
-        tx = np.arange(-50*sigma,50*sigma, dE) #Limit for 4e-3 of max treshold
+        tx = np.arange(-eRange[-1],eRange[-1], dE) #-50*sigma,50*sigma
         weights = 1/(-tx-1j*sigma)
         real_temp = weights.real/(np.abs(weights.imag).sum()*dE)
         
@@ -969,7 +952,7 @@ class EELS:
         return real
 
     @classmethod
-    def smear_data(cls, data, energy, sigma, type='Gaussian', adaptive=True):
+    def smear_data(cls, data, energy, sigma, type='Gaussian'):
         """ Smear the signal with a smearing of chosen type
         :type  data: np.ndarray
         :param data: the data to be smeared with the energy axis as the first axis
@@ -997,7 +980,7 @@ class EELS:
         #Determine the type of smearing
         if (type == 'Gaussian') or (type == 'G') or (type == 'Gauss')  or (type == 0):
             smearing = cls._gauss(sigma, energy)
-
+            
         elif (type == 'Imaginary') or (type == 'I') or (type == 'Imag') or (type == 'Im')  or (type == 1):
             smearing = cls._imaginary(sigma, energy)
 
