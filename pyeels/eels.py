@@ -35,8 +35,17 @@ class EELS:
         self.polarization = None
         self.dielectric = None
 
+        self.operator = np.eye(self.crystal.brillouinzone.bands[0].waves.shape[1], dtype=np.complex)
+
         self.valence_electrons = 1
 
+
+    def set_operator(self, operator):
+
+        if operator.shape != self.operator.shape:
+            raise ValueError("Shape of operator must match the wave components, i.e. the shape {}".format(self.operator.shape))
+
+        self.operator = operator.astype(np.complex)
 
     def set_diffractionzone(self, zone=None, bins=None):
         """ Define the resolution of the diffraction space, similar to the CCD in TEM
@@ -556,7 +565,6 @@ class EELS:
                 # Check if bands lay below or above fermi distribution interval. 
                 # Interval is estimated to temperature/500, this corresponds to approx. 10th digit accuracy
                 if self.temperature != 0:
-                    print("T neq 0")
                     if initial.energy_min() < self.fermienergy-self.temperature/500 and final.energy_max() > self.fermienergy+self.temperature/500:
                         self._transitions.append((i, f, initial, final))
                 else:
@@ -649,6 +657,8 @@ class EELS:
             np.stack(energyBands, axis=1),  
             np.stack(waveStates, axis=1).real, 
             np.stack(waveStates, axis=1).imag,
+            self.operator.real, 
+            self.operator.imag,
             self.energyBins, 
             self.fermienergy, 
             self.temperature

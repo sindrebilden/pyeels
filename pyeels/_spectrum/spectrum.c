@@ -126,12 +126,14 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     PyObject *energy_bands = NULL;
     PyObject *wave_real = NULL;
     PyObject *wave_imag = NULL;
+    PyObject *operator_real = NULL;
+    PyObject *operator_imag = NULL;
     PyObject *energy_bins = NULL;
    
     double fermi_energy; // Shuld be regular float
     double temperature;
 
-    if (!PyArg_ParseTuple(args, "OOOOOOOdd", &diffractionBins, &brillouinZone, &k_grid, &energy_bands, &wave_real, &wave_imag, &energy_bins, &fermi_energy, &temperature))
+    if (!PyArg_ParseTuple(args, "OOOOOOOOOdd", &diffractionBins, &brillouinZone, &k_grid, &energy_bands, &wave_real, &wave_imag, &operator_real, &operator_imag, &energy_bins, &fermi_energy, &temperature))
         return NULL;
 
     printf("Process started..\n");
@@ -185,18 +187,24 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
     double *initial_energy;
     double *final_energy;
     double energyTransfer;
+
     double probability;
     double p_real;
     double p_imag;
-    double v_real_i;
-    double v_real_f;
-    double v_imag_i;
-    double v_imag_f;
+
+    double f_real;
+    double f_imag;
+    double i_real;
+    double i_imag;
+    double o_real;
+    double o_imag;
+
     double momTrans[3] = {0.0,0.0,0.0};
     double q_squared;
     double fermiValueI, fermiValue;
     double k_squared;
     double k_temp;
+
 
     //Convert temperature to thermal energy
     temperature = temperature * 8.93103448276e-5;
@@ -207,19 +215,41 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
         for (int final_k = 0; final_k < k_size; final_k++){
             initial_energy = (double *) PyArray_GETPTR2(energy_bands, initial_k, 0);
             fermiValueI = fermiDirac(*initial_energy,fermi_energy,temperature);
-            if (fermiValueI < 1e-10) continue; //Speeds up calculation
+            if (abs(fermiValueI) < 1e-10) continue; //Speeds up calculation
 
             final_energy =  (double *) PyArray_GETPTR2(energy_bands, final_k, 1);
-            fermiValue = fermiValueI * (1.0-fermiDirac(*final_energy, fermi_energy, temperature));
+            fermiValue = fermiValueI - fermiDirac(*final_energy, fermi_energy, temperature);
 
-            if (fermiValue < 1e-10) continue; //Speeds up calculation
+            if (abs(fermiValue) < 1e-10) continue; //Speeds up calculation
 
             energyTransfer = *final_energy-*initial_energy;
             energyIndex = (energyTransfer-energy_offset)/dE;
 
             p_real = 0;
             p_imag = 0;
+
+            for (int i = 0; i < nWaves; i++) {
+                for (int f = 0; f < nWaves; f++) {
+                    /* PERFORMS <f|O|i> */
             
+                    f_real = *(double *) PyArray_GETPTR3(wave_real, final_k, 1,f); // final_k, final_band, index_f
+                    f_imag = *(double *) PyArray_GETPTR3(wave_imag, final_k, 1,f);
+
+                    i_real = *(double *) PyArray_GETPTR3(wave_real, initial_k, 0,i);
+                    i_imag = *(double *) PyArray_GETPTR3(wave_imag, initial_k, 0,i);
+
+                    o_real = *(double *) PyArray_GETPTR2(operator_real, f, i);
+                    o_imag = *(double *) PyArray_GETPTR2(operator_imag, f, i);
+
+                    p_real += f_real*o_real*i_real - f_real*o_imag*i_imag - f_imag*o_imag*i_real - f_imag*o_real*i_imag;
+                    p_imag += f_real*o_imag*i_real + f_real*o_real*i_imag + f_imag*o_real*i_real - f_imag*o_imag*i_imag;
+                }
+            }
+
+            probability = (p_real*p_real+p_imag*p_imag);
+
+//            OUTDATED, calculated <f|i>
+            /*
             for (int v = 0; v < nWaves; v++){      
                 v_real_i = *(double *) PyArray_GETPTR3(wave_real, initial_k, 0,v);
                 v_real_f = *(double *) PyArray_GETPTR3(wave_real, final_k, 1,v);
@@ -230,7 +260,9 @@ calculate_spectrum (PyObject *dummy, PyObject *args)
                 p_real += (v_real_f*v_real_i+v_imag_f*v_imag_i);
                 p_imag += (v_real_f*v_imag_i-v_imag_f*v_real_i);
             }
-            probability = (p_real*p_real+p_imag*p_imag);
+            */
+
+
                             
             if(PyErr_CheckSignals()) goto aborted;
 
