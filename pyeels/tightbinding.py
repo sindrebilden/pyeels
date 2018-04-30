@@ -632,7 +632,7 @@ class WurtziteSP3(TightBinding):
 
 class TbFitter():
     """ A Tight Binding Fitting class 
-    Based on a class written by Lars Mustad
+    Based on a class written by Lars Musland
     """
     mu = 0
     T = 1

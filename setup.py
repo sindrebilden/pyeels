@@ -14,7 +14,7 @@ except:
 
 setup(
       name = 'PyEELS',
-      version = '0.2.1',
+      version = '0.2.3',
       author = "Sindre R. Bilden",
       author_email = "s.r.bilden@fys.uio.no",
       url = 'https://github.com/sindrerb/pyeels',

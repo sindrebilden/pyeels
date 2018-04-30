@@ -47,9 +47,16 @@ class ParabolicBand:
         :returns: energy band as an array
         """
 
+        k_cartesian = np.dot(self._k_grid, self._crystal.brillouinzone.lattice)
+        mass_cartesian = np.dot(effective_mass, self._crystal.brillouinzone.lattice)
+        k_center_cartesian = np.dot(k_center, self._crystal.brillouinzone.lattice)
+        
+        # NOT CARTESIAN
+        #return energy_offset+(self._HBAR_C**2/(2*self._M_E))*((self._k_grid[:,0]-k_center[0])**2/effective_mass[0]\
+        #                    +(self._k_grid[:,1]-k_center[1])**2/effective_mass[1]+(self._k_grid[:,2]-k_center[2])**2/effective_mass[2])
 
-        return energy_offset+(self._HBAR_C**2/(2*self._M_E))*((self._k_grid[:,0]-k_center[0])**2/effective_mass[0]\
-                            +(self._k_grid[:,1]-k_center[1])**2/effective_mass[1]+(self._k_grid[:,2]-k_center[2])**2/effective_mass[2])
+        return energy_offset+(self._HBAR_C**2/(2*self._M_E))*((k_cartesian[:,0]-k_center_cartesian[0])**2/mass_cartesian[0]\
+                            +(k_cartesian[:,1]-k_center_cartesian[1])**2/mass_cartesian[1]+(k_cartesian[:,2]-k_center_cartesian[2])**2/mass_cartesian[2])
 
     def _calculate_parabolic_periodic(self, energy_offset=0, effective_mass=np.ones((3,)), k_center=np.zeros((3,)), wave=np.array([0,1])):
         """ Calculate energy of parabolic band in k-space with periodic boundary conditions in the Brillouin Zone
