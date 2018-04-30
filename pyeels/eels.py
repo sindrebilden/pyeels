@@ -609,7 +609,7 @@ class EELS:
                 self.polarization = signal_total
                 return signal_total
             else:
-                self.polarization = signal
+                self.polarization = signals
                 return signals
 
     def _trim_edges(self, data):
@@ -1073,7 +1073,7 @@ class EELS:
 
 
     @classmethod
-    def set_ROI(cls, s, shape="circle", interactive=False):
+    def set_ROI(cls, s, shape="circle", color="r", interactive=False):
         """ Selects an interactive region of interst (ROI) to the signal
 
         :type  s: hyperspy signal
@@ -1105,7 +1105,7 @@ class EELS:
 
             r_outer = x_axis.axis[round(3*x_axis.size/4)]
         
-            sroi = hs.roi.CircleROI(x, y, r=r_outer)
+            sroi = hs.roi.CircleROI(x, y, r=r_outer, color=color)
             """
             s.plot()
             sroi= sroi.interactive(s) 
@@ -1118,7 +1118,7 @@ class EELS:
             r_outer = x_axis.axis[round(4*x_axis.size/5)]
             r_inner = x_axis.axis[round(3*x_axis.size/4)]
         
-            sroi = hs.roi.CircleROI(x, y, r=r_outer, r_inner=r_inner)
+            sroi = hs.roi.CircleROI(x, y, r=r_outer, r_inner=r_inner, color=color)
             """
             s.plot()
             sroi= sroi.interactive(s) 
