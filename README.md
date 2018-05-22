@@ -14,9 +14,9 @@ The creation of model band structures is mainly based on [PythTB](http://physics
 
 The simulation of EELS is implemented in an C extension and can be multiprocessed for faster calculation.
 
-[hyperspy](http://hyperspy.org/) has been chosen as a framework for an interactive visualization of EELS-spectra, in this process Jupyter Notebook is a natural platform for scripting purpose.
+[HyperSpy](http://hyperspy.org/) has been chosen as a framework for an interactive visualization of EELS-spectra, in this process Jupyter Notebook is a natural platform for scripting purpose.
 
-A minimal working example is presented below:
+An example is presented below:
 
 ```python
 # Generate real space crystal model
