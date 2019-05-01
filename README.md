@@ -29,7 +29,7 @@ myCrystal.add_atom(atom=myAtom)
 
 # Create parabolic bands in reciprocal space
 from pyeels import ParabolicBand
-reci = ParabolicBand(mySystem)
+reci = ParabolicBand(myCrystal)
 
 reci.set_grid(mesh=31) # Number of k-points in each dimension
 
