@@ -12,7 +12,8 @@ The use of the package can be seen as threefold:
 
 The creation of model band structures is mainly based on [PythTB](http://physics.rutgers.edu/pythtb/), an additional model with parabolic bands is also provided.
 
-The simulation of EELS is implemented in an C extension and can be multiprocessed for faster calculation.
+The simulation of EELS is based on (https://www.duo.uio.no/handle/10852/63504) and implemented in an C extension thus can be multiprocessed for faster calculation.
+
 
 [HyperSpy](http://hyperspy.org/) has been chosen as a framework for an interactive visualization of EELS-spectra, in this process Jupyter Notebook is a natural platform for scripting purpose.
 
